@@ -29,7 +29,9 @@
 5. **Donation State Machine**:
    $$\text{AVAILABLE} \longrightarrow \text{RESERVED} \longrightarrow \text{COMPLETED}$$
    $$\text{AVAILABLE} \longrightarrow \text{CANCELLED}$$
-   $$\text{AVAILABLE / RESERVED} \longrightarrow \text{EXPIRED}$$
+   $$\text{AVAILABLE} \longrightarrow \text{EXPIRED}$$
+   $$\text{RESERVED} \longrightarrow \text{CANCELLED}$$
+   $$\text{RESERVED} \longrightarrow \text{EXPIRED}$$
    - Direct arbitrary client mutations of the `status` field are strictly forbidden. Transitions occur only through validated lifecycle endpoints (`/cancel`, `/complete`, `/matches/{id}/accept`).
 6. **Synchronous Matching Invariant**:
    - The deterministic matching engine runs **synchronously** inside the `POST /api/v1/donations` request cycle.
@@ -460,7 +462,7 @@ class DonationCompleteRequest(BaseModel):
   2. Verifies associated donation is still in `AVAILABLE` status.
   3. Updates match status to `ACCEPTED`.
   4. Updates donation status to `RESERVED`.
-  5. Updates all competing matches for this donation to `EXPIRED` to prevent race conditions or double claims.
+  5. Updates all competing matches for this donation to `EXPIRED` to prevent race conditions or competing reservations.
   6. Emits an in-app notification to the Food Provider.
   7. Returns full pickup address and donor contact information.
 

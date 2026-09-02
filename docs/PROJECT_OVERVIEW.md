@@ -109,15 +109,15 @@ To ensure reliable delivery by a small student engineering team, the scope is st
 
 | # | MVP Feature | Scope Description | Responsible Module / Branch |
 | :-: | :--- | :--- | :--- |
-| **1** | **User Registration & Login** | User signup (Provider/Recipient) with Argon2id password hashing and short-lived JWT access tokens. | `feature/backend`, `feature/database` |
-| **2** | **Role-Based Authorization** | Protected endpoints and service-level RBAC for `FOOD_PROVIDER`, `RECIPIENT`, and `ADMIN`. | `feature/backend` |
-| **3** | **Donation Creation & Management** | Food Providers can create, view, and cancel surplus listings (`quantity_meals > 0`, future expiry). | `feature/backend`, `feature/frontend` |
-| **4** | **Recipient Profile** | Recipients configure daily meal capacity, storage facilities (`JSONB`), and dietary preferences. | `feature/backend`, `feature/database` |
-| **5** | **Deterministic Heuristic Matching** | Multi-factor weighted scoring ($w_{dist}=0.35, w_{urg}=0.30, w_{cap}=0.20, w_{pref}=0.15$) executed synchronously. | `feature/ai-matching` |
-| **6** | **Match Acceptance & Rejection** | Server-controlled atomic accept/reject endpoints (`/api/v1/matches/{id}/accept`, `/reject`). | `feature/backend`, `feature/frontend` |
-| **7** | **Donation Lifecycle State Machine** | Strict state transitions: `AVAILABLE` $\rightarrow$ `RESERVED` $\rightarrow$ `COMPLETED` (terminal: `EXPIRED`, `CANCELLED`). | `feature/backend`, `feature/database` |
-| **8** | **In-App Notifications** | Database-backed alerts fetched by frontend via REST polling (`GET /api/v1/notifications`). | `feature/backend`, `feature/frontend` |
-| **9** | **Basic Impact Metrics** | Transparent calculation of total meals rescued, food weight (kg), and $\text{CO}_2$ emissions prevented. | `feature/backend`, `feature/ai-matching` |
+| **1** | **User Registration & Login** | User signup (Provider/Recipient) with Argon2id password hashing and short-lived JWT access tokens. | `feature/backend-ai`, `feature/database` |
+| **2** | **Role-Based Authorization** | Protected endpoints and service-level RBAC for `FOOD_PROVIDER`, `RECIPIENT`, and `ADMIN`. | `feature/backend-ai` |
+| **3** | **Donation Creation & Management** | Food Providers can create, view, and cancel surplus listings (`quantity_meals > 0`, future expiry). | `feature/backend-ai`, `feature/frontend` |
+| **4** | **Recipient Profile** | Recipients configure daily meal capacity, storage facilities (`JSONB`), and dietary preferences. | `feature/backend-ai`, `feature/database` |
+| **5** | **Deterministic Heuristic Matching** | Multi-factor weighted scoring ($w_{dist}=0.35, w_{urg}=0.30, w_{cap}=0.20, w_{pref}=0.15$) executed synchronously. | `feature/backend-ai` |
+| **6** | **Match Acceptance & Rejection** | Server-controlled atomic accept/reject endpoints (`/api/v1/matches/{id}/accept`, `/reject`). | `feature/backend-ai`, `feature/frontend` |
+| **7** | **Donation Lifecycle State Machine** | Strict state transitions: `AVAILABLE` $\rightarrow$ `RESERVED` $\rightarrow$ `COMPLETED` (terminal: `EXPIRED`, `CANCELLED`). | `feature/backend-ai`, `feature/database` |
+| **8** | **In-App Notifications** | Database-backed alerts fetched by frontend via REST polling (`GET /api/v1/notifications`). | `feature/backend-ai`, `feature/frontend` |
+| **9** | **Basic Impact Metrics** | Transparent calculation of total meals rescued, food weight (kg), and $\text{CO}_2$ emissions prevented. | `feature/backend-ai` |
 | **10** | **Automated Tests** | Pytest backend unit/integration tests, Vitest component tests, and Playwright E2E tests. | `feature/ui-testing` |
 
 ---

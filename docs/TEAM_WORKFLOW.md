@@ -12,11 +12,10 @@ FoodSync AI follows a simple, beginner-friendly feature branch workflow. The `ma
 
 | Teammate | Role | Primary Assigned Branch | Scope & Responsibilities |
 | :--- | :--- | :--- | :--- |
-| **Shruti** | **Team Lead / AI & Architecture** | `feature/ai-matching` | Heuristic matching engine, system architecture oversight, security & PR reviews |
-| **Lokeshwari** | **Database & API** | `feature/database` | PostgreSQL schemas, SQLAlchemy ORM models, Alembic migrations, data repositories |
-| **Vishwajeet** | **UI/UX & Testing** | `feature/ui-testing` | Pytest & Vitest test suites, UI/UX consistency, edge case validation |
-| **Atharva** | **Frontend Developer** | `feature/frontend` | Next.js App Router pages, Tailwind CSS components, client API integration |
-| **Akanksha** | **Backend Developer** | `feature/backend` | FastAPI route controllers, Pydantic schemas, business domain services, auth middleware |
+| **Shruti** | **Team Lead / Backend + AI / System Architecture** | `feature/backend-ai` | Backend implementation, authentication, APIs, business services, AI matching, architecture |
+| **Lokeshwari** | **Database Developer** | `feature/database` | PostgreSQL schema, SQLAlchemy models, repositories, Alembic migrations, database integrity |
+| **Atharva** | **Frontend Developer** | `feature/frontend` | Next.js frontend, UI components, client state, API integration |
+| **Vishwajeet** | **Testing / UI QA** | `feature/ui-testing` | Backend tests, integration tests, E2E tests, UI QA |
 | **All Team** | **Integration / Staging** | `main` *(Protected)* | Stable production-ready codebase; updated exclusively via reviewed Pull Requests |
 
 ---
@@ -27,29 +26,28 @@ FoodSync AI follows a simple, beginner-friendly feature branch workflow. The `ma
 gitGraph
     commit id: "Initial Setup"
     branch feature/database
-    branch feature/backend
+    branch feature/backend-ai
     branch feature/frontend
-    branch feature/ai-matching
     branch feature/ui-testing
     
     checkout feature/database
     commit id: "db: define postgres models"
     
-    checkout feature/backend
+    checkout feature/backend-ai
     commit id: "api: add auth & donation routes"
     
-    checkout feature/ai-matching
-    commit id: "ai: implement scoring math"
+    checkout feature/frontend
+    commit id: "ui: create donation components"
     
     checkout main
     merge feature/database id: "PR #1 (Lokeshwari): DB Models"
     
-    checkout feature/backend
+    checkout feature/backend-ai
     merge main id: "Sync with main"
-    commit id: "api: link sqlalchemy models"
+    commit id: "ai: matching service & tests"
     
     checkout main
-    merge feature/backend id: "PR #2 (Akanksha): Backend API"
+    merge feature/backend-ai id: "PR #2 (Shruti): Backend & AI"
 ```
 
 ### Core Collaboration Rules:
@@ -80,7 +78,7 @@ flowchart TD
 
 ### Merge Checklist:
 - [ ] **Tests Pass**: All unit and integration tests pass locally (`pytest` and `cd frontend && npm run test`).
-- [ ] **Documentation Synchronized**: If endpoints or database fields changed, [API_CONTRACT.md](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/API_CONTRACT.md) and [DATABASE_SCHEMA.md](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/DATABASE_SCHEMA.md) are updated in the same PR.
+- [ ] **Documentation Synchronized**: If endpoints or database fields changed, [API_CONTRACT.md](API_CONTRACT.md) and [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) are updated in the same PR.
 - [ ] **Security Review**: Changes affecting authentication, password hashing, JWT tokens, or pickup address privacy require review from **Shruti**.
 - [ ] **Clean Git History**: Meaningful commit messages adhering to conventional commit standards.
 

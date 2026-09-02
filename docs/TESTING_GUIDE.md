@@ -11,7 +11,7 @@
 
 1. **Focus on Critical Business & Security Paths**:
    - For the MVP, we do **not** mandate arbitrary 100% test coverage metrics.
-   - We prioritize high-risk, critical paths: **Authentication & RBAC guards, donation state machine transitions, double-claim concurrency prevention, deterministic matching calculations, and location privacy masking**.
+   - We prioritize high-risk, critical paths: **Authentication & RBAC guards, donation state machine transitions, double-reservation concurrency prevention, deterministic matching calculations, and location privacy masking**.
 2. **Fast & Locally Runnable**:
    - All unit and integration tests must run locally in under 15 seconds without requiring external cloud dependencies or message brokers.
 
@@ -38,9 +38,10 @@ FoodSync-AI/
 │       ├── DonationCard.test.tsx      # Privacy masking & rendering
 │       └── ClaimActionModal.test.tsx  # Accept / reject button interactions
 │
-└── e2e/                               # End-to-End Browser Journeys (Playwright)
-    └── flows/
-        └── donation_to_claim.spec.ts  # Full provider post -> recipient claim journey
+└── tests/                             # End-to-End Browser Journeys (Playwright)
+    └── e2e/
+        └── flows/
+            └── donation_to_claim.spec.ts  # Full provider post -> recipient claim journey
 ```
 
 ---
@@ -91,12 +92,12 @@ FoodSync-AI/
 
 ---
 
-### 3.4 Match Claim, Concurrency & State Machine Test Matrix
+### 3.4 Match Acceptance, Concurrency & State Machine Test Matrix
 
 | Test ID | Test Case Name | Input / Precondition | Expected Outcome |
 | :--- | :--- | :--- | :--- |
 | `TC-CLM-01` | **Valid Match Acceptance** | Assigned recipient calls `POST /api/v1/matches/{match_id}/accept` | `200 OK`, match $\rightarrow$ `ACCEPTED`, donation $\rightarrow$ `RESERVED`. |
-| `TC-CLM-02` | **Double Claim Concurrency Prevention** | Recipient B attempts to accept a match for a donation already `RESERVED` by Recipient A | `409 Conflict` (`DONATION_ALREADY_RESERVED`). Prevents duplicate reservations. |
+| `TC-CLM-02` | **Double Reservation Concurrency Prevention** | Recipient B attempts to accept a match for a donation already `RESERVED` by Recipient A | `409 Conflict` (`DONATION_ALREADY_RESERVED`). Prevents duplicate reservations. |
 | `TC-CLM-03` | **Expired Donation Cannot Be Accepted**| Recipient attempts to accept a match on a donation past its `expiry_time` | `400 Bad Request` (`MATCH_OR_DONATION_EXPIRED`). |
 | `TC-CLM-04` | **Valid Match Rejection** | Assigned recipient calls `POST /api/v1/matches/{match_id}/reject` | `200 OK`, match $\rightarrow$ `REJECTED`, next candidate in ranking notified. |
 | `TC-CLM-05` | **Completion & Impact Logging** | Provider confirms pickup via `POST /api/v1/donations/{id}/complete` | `200 OK`, status $\rightarrow$ `COMPLETED`, immutable row inserted into `impact_logs`. |

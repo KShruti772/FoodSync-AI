@@ -37,9 +37,21 @@ The FoodSync AI MVP stack is frozen as follows:
 
 ## 2. High-Level Architecture Flow
 
-FoodSync AI is structured as a clean, modular monolith with decoupled frontend and backend applications:
+FoodSync AI is structured as a clean, modular monolith with decoupled frontend and backend applications. The strict one-way dependency direction is:
 
-$$\text{User (Browser)} \longrightarrow \text{Next.js Client} \longrightarrow \text{FastAPI REST API} \longrightarrow \text{Domain Services} \longrightarrow \text{Repositories / SQLAlchemy} \longrightarrow \text{PostgreSQL}$$
+```text
+Frontend (Next.js Client)
+    ↓ (REST JSON /api/v1 over HTTP)
+Backend API (FastAPI Route Controllers & Middleware)
+    ↓ (Pydantic Schemas & DTOs)
+Domain / Business Services (Auth, Donation, Recipient, Matching, Reservation, Notification, Impact)
+    ↓ (Entity Repositories)
+Repositories / Data Access (SQLAlchemy 2.x Queries)
+    ↓ (Declarative ORM Mapping)
+SQLAlchemy Models
+    ↓ (ACID Transactions)
+PostgreSQL 15+
+```
 
 ```mermaid
 flowchart TD
@@ -64,18 +76,18 @@ flowchart TD
         APIRouter --> AuthMiddleware --> PydanticModels
     end
 
-    subgraph DomainServices ["3. Business Domain Services (Python)"]
+    subgraph DomainServices ["3. Business Domain Services (backend/app/services/)"]
         AuthService["Auth Service\n(Argon2id hashing, JWT issuance)"]
         DonationService["Donation Service\n(Surplus CRUD, Expiry checks)"]
         RecipientService["Recipient Service\n(Profiles, Capacity in meals)"]
-        MatchingService["Matching Service\n(Deterministic Heuristic Scoring)"]
-        ClaimService["Match / Claim Service\n(Atomic Accept/Reject & Reservation)"]
+        MatchingService["AI Matching Service (backend/app/services/matching/)\n(Deterministic Heuristic Scoring Engine)"]
+        ClaimService["Match / Reservation Service\n(Atomic Accept/Reject & Reservation)"]
         NotificationService["Notification Service\n(DB-backed in-app alerts)"]
         ImpactService["Impact Service\n(Meals, Weight, CO2 computations)"]
     end
 
     subgraph DataLayer ["4. Persistence Layer (PostgreSQL 15+)"]
-        Repositories["Repository Layer\n(UserRepo, DonationRepo, MatchRepo)"]
+        Repositories["Repository Layer (backend/app/repositories/)\n(UserRepo, DonationRepo, MatchRepo)"]
         SQLAlchemyORM["SQLAlchemy 2.x ORM Models & Session"]
         Alembic["Alembic Versioned Migrations"]
         PostgresDB[(PostgreSQL Primary Database\nusers, food_donations, matches, etc.)]
@@ -114,7 +126,7 @@ flowchart LR
 | Dimension | Definition | Scope in FoodSync AI MVP |
 | :--- | :--- | :--- |
 | **System Design** *(WHAT exists)* | The static architectural topology, physical codebase structure, module boundaries, database tables, and API contracts. | Directory layouts, FastAPI routes, Pydantic schemas, SQLAlchemy models, PostgreSQL tables (`DATABASE_SCHEMA.md`), design tokens (`UI_GUIDELINES.md`). |
-| **Methodology** *(HOW the system operates)* | The dynamic runtime lifecycle, business rules, mathematical scoring formulas, state transitions, and coordination patterns. | Synchronous donation-matching workflow, state transition rules (`AVAILABLE` $\rightarrow$ `RESERVED` $\rightarrow$ `COMPLETED`), heuristic scoring equation ($w_{dist}, w_{urg}, w_{cap}, w_{pref}$). |
+| **Methodology** *(HOW the system operates)* | The dynamic runtime lifecycle, business rules, mathematical scoring formulas, state transitions, and coordination patterns. | Synchronous donation-matching workflow, state transition rules (`AVAILABLE` $\rightarrow$ `RESERVED` $\rightarrow$ `COMPLETED`), heuristic scoring equation ($w_{dist}, w_{urg}, w_{cap}, w_{req}$). |
 
 ---
 
@@ -122,13 +134,13 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    subgraph Services ["FastAPI Business Logic Services"]
+    subgraph Services ["FastAPI Business Logic Services (backend/app/services/)"]
         direction TB
         AS["Auth Service\n• Password hashing with Argon2id\n• JWT token generation & verification\n• Credential validation & RBAC checks"]
         DS["Donation Service\n• Surplus food CRUD operations\n• Expiry bounds validation\n• Calls Matching Service synchronously"]
         RS["Recipient Service\n• Profile & capacity management (meals)\n• Storage types (JSONB) & dietary criteria"]
-        MS["Matching Service\n• Haversine distance & effective radius filter\n• Deterministic 4-factor heuristic scoring\n• Candidate ranking & tie-breaking"]
-        CS["Match / Claim Service\n• Atomic match accept / reject handling\n• Enforces reservation locks\n• Prevents double claims"]
+        MS["AI Matching Service (backend/app/services/matching/)\n• Haversine distance & effective radius filter\n• Deterministic 4-factor heuristic scoring\n• Modular architecture for future ML extension"]
+        CS["Match / Reservation Service\n• Atomic match accept / reject handling\n• Enforces reservation locks\n• Prevents competing claims"]
         NS["Notification Service\n• Creates DB-backed in-app alerts\n• Fetches unread notifications via REST"]
         IS["Impact Service\n• Calculates kg rescued & meals served\n• Calculates estimated CO2 offsets\n• Aggregates platform statistics"]
     end
@@ -142,25 +154,33 @@ flowchart TD
 ### 2. Donation Service
 - Handles creation, retrieval, and cancellation of surplus listings.
 - Enforces data integrity (e.g. `quantity_meals > 0`, `expiry_time > now() + 30m`).
-- Synchronously invokes the `Matching Service` when a new donation is created.
+- Synchronously invokes the `AI Matching Service` when a new donation is created.
 
 ### 3. Recipient Service
 - Manages recipient organization profiles (daily meal capacity, storage facilities, dietary preferences).
 - Supplies verified recipient constraints to the matching engine.
 
-### 4. Matching Service
-- Executes the deterministic multi-factor scoring formula:
-  $$S_{total} = 0.35 \cdot S_{dist} + 0.30 \cdot S_{urg} + 0.20 \cdot S_{cap} + 0.15 \cdot S_{pref}$$
+### 4. AI Matching Service (`backend/app/services/matching/`)
+- Encapsulates the deterministic multi-factor scoring formula:
+  $$\text{Score} = 0.35 \times \text{Distance} + 0.30 \times \text{Urgency} + 0.20 \times \text{Capacity} + 0.15 \times \text{Requirement}$$
+  $$S_{total} = 0.35 \cdot S_{dist} + 0.30 \cdot S_{urg} + 0.20 \cdot S_{cap} + 0.15 \cdot S_{req}$$
+- Distance initially uses Haversine calculation.
 - Filters candidates based on active verification, effective radius ($\min(15\text{ km}, R.\text{max\_travel\_distance\_km})$), and dietary/storage compatibility.
-- Ranks candidates with strict tie-breaking and saves records to PostgreSQL.
+- Ranks candidates with strict deterministic tie-breaking and persists records to PostgreSQL.
+- Designed with a clean modular interface so a future trained ML model can augment or replace the heuristic without altering downstream services. (The MVP matching system is a deterministic weighted heuristic, not a trained ML model).
 
-### 5. Match / Claim Service
-- Processes recipient actions (`POST /api/v1/matches/{id}/accept` and `/reject`).
-- Enforces atomic state transitions to `RESERVED` and cancels competing candidate matches.
-- Unlocks exact pickup details to the accepted recipient.
+### 5. Match / Reservation Service
+- Processes recipient actions (`POST /api/v1/matches/{match_id}/accept` and `POST /api/v1/matches/{match_id}/reject`).
+- Atomically verifies:
+  1. Authenticated user is the intended candidate recipient.
+  2. Match exists in `PROPOSED` or `NOTIFIED` status.
+  3. Associated donation is still in `AVAILABLE` status and unexpired.
+  4. Competing reservation does not already exist.
+- Performs atomic database state transition to `RESERVED` and sets competing matches to `EXPIRED`.
+- Unlocks exact pickup details and donor contact info to the authorized accepted recipient.
 
 ### 6. Notification Service
-- Creates database records in `notifications` table on match generation, claim, and completion.
+- Creates database records in `notifications` table on match generation, claim/reservation, and completion.
 - Serves unread alerts to frontend dashboards via standard REST polling (`GET /api/v1/notifications`).
 
 ### 7. Impact Service

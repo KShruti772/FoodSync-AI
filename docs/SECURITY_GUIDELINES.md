@@ -3,7 +3,7 @@
 > **Status**: Architecture Frozen — Single Source of Truth for Security Architecture  
 > **Backend Framework**: Python (FastAPI)  
 > **Hashing Algorithm**: Argon2id  
-> **Module Owner**: Shruti (`feature/ai-matching`) & Akanksha (`feature/backend`)  
+> **Module Owner**: Shruti (`feature/backend-ai`)  
 > **Repository**: [KShruti772/FoodSync-AI](https://github.com/KShruti772/FoodSync-AI)
 
 ---
@@ -91,12 +91,12 @@ flowchart TD
 
 ---
 
-## 5. Race Condition & Double-Claim Prevention
+## 5. Race Condition & Double-Reservation Prevention
 
-To prevent two recipient organizations from claiming the same surplus food donation simultaneously, the backend uses **atomic database transactions with conditional row updates**:
+To prevent two recipient organizations from reserving the same surplus food donation simultaneously via `POST /api/v1/matches/{match_id}/accept`, the backend uses **atomic database transactions with conditional row updates**:
 
 ```python
-# Atomic reservation in donation_repo.py / claim_service.py
+# Atomic reservation in donation_repo.py / reservation handling
 result = db_session.execute(
     update(FoodDonation)
     .where(FoodDonation.id == donation_id, FoodDonation.status == "AVAILABLE")

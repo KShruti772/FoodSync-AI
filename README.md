@@ -42,16 +42,16 @@ All features and development workflows are governed by these authoritative contr
 
 | Document | Purpose |
 | :--- | :--- |
-| 📖 **[Project Overview](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/PROJECT_OVERVIEW.md)** | Problem statement, standard terminology, user roles, redistribution lifecycle, and MVP vs Phase 2 scope. |
-| 🏛️ **[System Architecture](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/ARCHITECTURE.md)** | Multi-tier architecture, layer responsibilities, system design vs methodology, and state machine. |
-| 🛠️ **[Development Guide](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/DEVELOPMENT_GUIDE.md)** | Directory layout, code ownership, naming conventions, layer boundaries, and "Do Not" rules. |
-| 📡 **[API Contract](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/API_CONTRACT.md)** | Standard REST `/api/v1` contracts, Pydantic schemas, privacy masking, error codes, and examples. |
-| 🗄️ **[Database Schema](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/DATABASE_SCHEMA.md)** | PostgreSQL relational schema, ER diagram, field types, constraints, indexes, and relationships. |
-| 🧠 **[AI Matching Engine](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/AI_MATCHING.md)** | Deterministic multi-factor heuristic scoring formula, Haversine distance, tie-breaking, and test cases. |
-| 🎨 **[UI Guidelines](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/UI_GUIDELINES.md)** | Tailwind design tokens, typography, component catalog, user journeys, and privacy reveal rules. |
-| 🧪 **[Testing Guide](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/TESTING_GUIDE.md)** | Pytest + HTTPX test strategy, mandatory security/concurrency/privacy test matrices, and commands. |
-| 🔒 **[Security Guidelines](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/SECURITY_GUIDELINES.md)** | Argon2id hashing, admin registration protection, Pydantic validation, RBAC, double-claim prevention, and CORS. |
-| 👥 **[Team Workflow](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/TEAM_WORKFLOW.md)** | Git branching, shared `main` rules, PR review policy, doc synchronization, and daily commands. |
+| 📖 **[Project Overview](docs/PROJECT_OVERVIEW.md)** | Problem statement, standard terminology, user roles, redistribution lifecycle, and MVP vs Phase 2 scope. |
+| 🏛️ **[System Architecture](docs/ARCHITECTURE.md)** | Multi-tier architecture, layer responsibilities, system design vs methodology, and state machine. |
+| 🛠️ **[Development Guide](docs/DEVELOPMENT_GUIDE.md)** | Directory layout, code ownership, naming conventions, layer boundaries, and "Do Not" rules. |
+| 📡 **[API Contract](docs/API_CONTRACT.md)** | Standard REST `/api/v1` contracts, Pydantic schemas, privacy masking, error codes, and examples. |
+| 🗄️ **[Database Schema](docs/DATABASE_SCHEMA.md)** | PostgreSQL relational schema, ER diagram, field types, constraints, indexes, and relationships. |
+| 🧠 **[AI Matching Engine](docs/AI_MATCHING.md)** | Deterministic multi-factor heuristic scoring formula, Haversine distance, tie-breaking, and test cases. |
+| 🎨 **[UI Guidelines](docs/UI_GUIDELINES.md)** | Tailwind design tokens, typography, component catalog, user journeys, and privacy reveal rules. |
+| 🧪 **[Testing Guide](docs/TESTING_GUIDE.md)** | Pytest + HTTPX test strategy, mandatory security/concurrency/privacy test matrices, and commands. |
+| 🔒 **[Security Guidelines](docs/SECURITY_GUIDELINES.md)** | Argon2id hashing, admin registration protection, Pydantic validation, RBAC, double-reservation prevention, and CORS. |
+| 👥 **[Team Workflow](docs/TEAM_WORKFLOW.md)** | Git branching, shared `main` rules, PR review policy, doc synchronization, and daily commands. |
 
 ---
 
@@ -59,24 +59,26 @@ All features and development workflows are governed by these authoritative contr
 
 | Teammate | Role | Primary Assigned Branch |
 | :--- | :--- | :--- |
-| **Shruti** | **Team Lead / AI & Architecture** | `feature/ai-matching` |
-| **Lokeshwari** | **Database & API** | `feature/database` |
-| **Vishwajeet** | **UI/UX & Testing** | `feature/ui-testing` |
+| **Shruti** | **Team Lead / Backend + AI / System Architecture** | `feature/backend-ai` |
+| **Lokeshwari** | **Database Developer** | `feature/database` |
 | **Atharva** | **Frontend Developer** | `feature/frontend` |
-| **Akanksha** | **Backend Developer** | `feature/backend` |
+| **Vishwajeet** | **Testing / UI QA** | `feature/ui-testing` |
 | **All Team** | **Integration / Staging** | `main` *(Protected)* |
 
 ---
 
-## 📂 Planned Repository Structure
+## 📂 Repository Structure
 
 ```
 FoodSync-AI/
 ├── docs/                              # Frozen architecture & implementation contracts
-├── frontend/                          # [PLANNED] Next.js + Tailwind CSS client
-├── backend/                           # [PLANNED] FastAPI REST API, SQLAlchemy models & services
-│   └── tests/                         # [PLANNED] Pytest unit and integration test suites
-├── e2e/                               # [PLANNED] Playwright browser test suites
+├── frontend/                          # Next.js + Tailwind CSS client
+├── backend/                           # FastAPI REST API, SQLAlchemy models & services
+│   ├── alembic/                       # Alembic database migrations
+│   ├── app/                           # Backend application source code
+│   └── tests/                         # Pytest unit and integration test suites
+├── tests/                             # End-to-end test suites
+│   └── e2e/                           # Playwright browser test suites
 ├── .env.example                       # Template for environment configuration
 ├── .gitignore                         # Version control exclusions
 └── README.md                          # Root project overview & navigation

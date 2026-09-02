@@ -2,7 +2,7 @@
 
 > **Status**: Architecture Frozen — Single Source of Truth for Frontend Architecture  
 > **Frontend Stack**: Next.js (App Router) + TypeScript + Tailwind CSS  
-> **Module Owner**: Vishwajeet (`feature/ui-testing`) & Atharva (`feature/frontend`)  
+> **Module Owner**: Atharva (`feature/frontend`) & Vishwajeet (`feature/ui-testing`)  
 > **Repository**: [KShruti772/FoodSync-AI](https://github.com/KShruti772/FoodSync-AI)
 
 ---
@@ -11,7 +11,7 @@
 
 1. **Backend Authoritative Principle**:
    - The frontend client **never** performs authorization decisions, role verification, or matching calculations itself.
-   - The FastAPI backend is the sole authority on donation states, claim validity, and user permissions.
+   - The FastAPI backend is the sole authority on donation states, reservation validity, and user permissions.
    - The frontend's role is strictly presentation, client-side input validation, and rendering backend state.
 2. **Location & Contact Privacy Rules in UI**:
    - **Before Match Acceptance / General Browse**: The UI displays only approximate geographic locations and distance (e.g. *"Pune Central • 2.4 km away"*). The exact street address, donor phone number, and private notes are hidden.

@@ -112,7 +112,8 @@ FoodSync-AI/
 │   │   │   ├── auth_service.py
 │   │   │   ├── donation_service.py
 │   │   │   ├── recipient_service.py
-│   │   │   ├── matching_service.py    # Deterministic multi-factor scoring engine
+│   │   │   ├── matching/              # Deterministic multi-factor scoring engine
+│   │   │   │   └── matching_service.py
 │   │   │   ├── claim_service.py       # Match accept / reject & reservation handling
 │   │   │   ├── notification_service.py
 │   │   │   └── impact_service.py
@@ -129,9 +130,10 @@ FoodSync-AI/
 │           ├── test_claims_routes.py
 │           └── test_notifications_routes.py
 │
-└── e2e/                               # End-to-End Browser Journeys (Playwright)
-    └── flows/
-        └── donation_to_claim.spec.ts
+└── tests/                             # E2E test suites
+    └── e2e/                           # End-to-End Browser Journeys (Playwright)
+        └── flows/
+            └── donation_to_claim.spec.ts
 ```
 
 ---
@@ -143,18 +145,18 @@ flowchart TD
     Client["Next.js Web Client\n(Browser)"] -->|1. REST HTTP / JSON Requests Only| Router["FastAPI Routers (backend/app/api/)\n(HTTP Controller Layer)"]
     Router -->|2. Validates Request / Response| Schema["Pydantic Schemas (backend/app/schemas/)\n(Validation Layer)"]
     Router -->|3. Delegates Work| Service["Domain Services (backend/app/services/)\n(Business Logic Layer)"]
-    Service -->|4. Synchronous Invocation| Matching["Matching Service\n(Heuristic Scoring Engine)"]
+    Service -->|4. Synchronous Invocation| Matching["AI Matching Service (backend/app/services/matching/)\n(Heuristic Scoring Engine)"]
     Service -->|5. Queries / Mutations| Repo["Repositories (backend/app/repositories/)\n(Data-Access Layer)"]
     Repo -->|6. ORM Operations| DB[(PostgreSQL Database)]
 ```
 
 ### Core Invariants:
 1. **Frontend Never Accesses PostgreSQL Directly**: The Next.js frontend has zero direct connection to the database. All state queries and mutations occur strictly through FastAPI REST endpoints (`/api/v1`).
-2. **Frontend Communicates Only with FastAPI**: The client-side application relies exclusively on the endpoints specified in [API_CONTRACT.md](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/API_CONTRACT.md).
+2. **Frontend Communicates Only with FastAPI**: The client-side application relies exclusively on the endpoints specified in [API_CONTRACT.md](API_CONTRACT.md).
 3. **Controllers / Routers Must NOT Contain Business Logic**: FastAPI route functions (`backend/app/api/`) are responsible only for parameter parsing, dependency injection, and invoking services. They must never contain raw business computations or SQL queries.
 4. **Business Logic Belongs Strictly in Services**: All validation rules, state transitions (`AVAILABLE` $\rightarrow$ `RESERVED` $\rightarrow$ `COMPLETED`), permission checks, and coordination reside in `backend/app/services/`.
 5. **Database Access Belongs in Repositories / Data-Access Layer**: Direct SQLAlchemy session queries (`select`, `add`, `commit`, `rollback`) belong inside `backend/app/repositories/` and `backend/app/models/`.
-6. **Matching Logic Belongs Exclusively in `matching_service.py`**: The multi-factor scoring formula ($w_{dist}, w_{urg}, w_{cap}, w_{pref}$), Haversine distance calculations, and candidate ranking are encapsulated inside `matching_service.py`.
+6. **Matching Logic Belongs Exclusively in `backend/app/services/matching/`**: The multi-factor scoring formula ($w_{dist}, w_{urg}, w_{cap}, w_{req}$), Haversine distance calculations, and candidate ranking are encapsulated inside `backend/app/services/matching/`.
 
 ---
 
@@ -163,13 +165,18 @@ flowchart TD
 | Feature / Responsibility | Designated Location | Owner & Branch |
 | :--- | :--- | :--- |
 | **Next.js UI & Components** | `frontend/app/`, `frontend/components/` | Atharva (`feature/frontend`) |
-| **Frontend API Client** | `frontend/services/api.ts` | Atharva (`feature/frontend`) |
-| **FastAPI Route Controllers** | `backend/app/api/` | Akanksha (`feature/backend`) |
-| **Business Domain Services** | `backend/app/services/` | Akanksha (`feature/backend`) |
-| **SQLAlchemy Models & Alembic** | `backend/app/models/`, `backend/alembic/` | Lokeshwari (`feature/database`) |
+| **Frontend API Client & State** | `frontend/services/api.ts`, `frontend/hooks/` | Atharva (`feature/frontend`) |
+| **FastAPI Route Controllers** | `backend/app/api/` | Shruti (`feature/backend-ai`) |
+| **Core Config & Security Middleware** | `backend/app/core/` | Shruti (`feature/backend-ai`) |
+| **Pydantic Validation Schemas** | `backend/app/schemas/` | Shruti (`feature/backend-ai`) |
+| **Business Domain Services** | `backend/app/services/` | Shruti (`feature/backend-ai`) |
+| **Backend Utilities** | `backend/app/utils/` | Shruti (`feature/backend-ai`) |
+| **AI Matching Engine** | `backend/app/services/matching/` | Shruti (`feature/backend-ai`) |
+| **SQLAlchemy Models & Integrity** | `backend/app/models/` | Lokeshwari (`feature/database`) |
+| **Alembic Database Migrations** | `backend/alembic/` | Lokeshwari (`feature/database`) |
 | **Data Repositories** | `backend/app/repositories/` | Lokeshwari (`feature/database`) |
-| **AI Matching Engine** | `backend/app/services/matching_service.py` | Shruti (`feature/ai-matching`) |
-| **Automated Test Suites** | `backend/tests/`, `frontend/components/__tests__/`, `e2e/` | Vishwajeet (`feature/ui-testing`) |
+| **Backend & Integration Tests** | `backend/tests/` | Vishwajeet (`feature/ui-testing`) |
+| **E2E & UI Component Tests** | `tests/e2e/`, `frontend/components/__tests__/` | Vishwajeet (`feature/ui-testing`) |
 | **Architecture & Contracts** | `docs/*.md` | Shruti (Team Lead) / All |
 
 ---
@@ -230,8 +237,8 @@ flowchart TD
 4. **DO NOT** change another teammate's active branch without direct coordination.
 5. **DO NOT** introduce unnecessary third-party libraries (no Redis, Celery, Mongo, or custom microservices in MVP).
 6. **DO NOT** hard-code secrets, passwords, or tokens in source code (use `.env` and `.env.example`).
-7. **DO NOT** modify an API endpoint or payload without updating [API_CONTRACT.md](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/API_CONTRACT.md) first.
-8. **DO NOT** modify database models or schema without updating [DATABASE_SCHEMA.md](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/DATABASE_SCHEMA.md) first.
+7. **DO NOT** modify an API endpoint or payload without updating [API_CONTRACT.md](API_CONTRACT.md) first.
+8. **DO NOT** modify database models or schema without updating [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) first.
 9. **DO NOT** bypass service or repository layers to perform raw database operations inside API routes.
 
 ---

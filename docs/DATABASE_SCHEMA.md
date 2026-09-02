@@ -13,7 +13,7 @@
 1. **Single Authoritative Schema**: This document represents the sole official relational schema for FoodSync AI MVP. No competing models, MongoDB, or alternate production databases are supported.
 2. **PostgreSQL Selection Rationale**:
    - FoodSync AI operates heavily interconnected domain entities (`users`, `food_donations`, `recipient_profiles`, `matches`, `notifications`, `impact_logs`).
-   - Requires robust relational integrity: strict foreign key constraints, column check constraints, ACID transactions, atomic conditional state updates (double-claim prevention), and geospatial coordinates querying.
+   - Requires robust relational integrity: strict foreign key constraints, column check constraints, ACID transactions, atomic conditional state updates (double-reservation prevention), and geospatial coordinates querying.
    - *Note on SQLite*: SQLite is never used for production and may only serve as an optional, isolated in-memory test fixture if strictly necessary.
 3. **Naming Conventions**:
    - Table names: `plural_snake_case` (e.g. `users`, `food_donations`, `matches`)
@@ -23,7 +23,7 @@
 4. **Unit Harmonization for Matching**:
    - To eliminate unit conversion errors during heuristic matching, all food quantities and recipient capacities are strictly stored in **`MEALS`** (`INTEGER`).
 5. **Data Privacy Invariant**:
-   - `pickup_address`, `phone`, and `special_instructions` are private, sensitive fields. The database stores these columns, but the FastAPI backend enforces application-level authorization (per [API_CONTRACT.md](file:///Users/shrutikondabathula/SIH26117/FoodSync-AI/docs/API_CONTRACT.md)) to prevent public leakage.
+   - `pickup_address`, `phone`, and `special_instructions` are private, sensitive fields. The database stores these columns, but the FastAPI backend enforces application-level authorization (per [API_CONTRACT.md](API_CONTRACT.md)) to prevent public leakage.
 
 ---
 
