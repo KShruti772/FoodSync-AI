@@ -16,7 +16,7 @@ The FoodSync AI Matching Engine is a **transparent, deterministic heuristic rank
 - **Deterministic Heuristic for MVP (Not a Trained ML Model)**: The MVP does **not** use deep neural networks, embeddings, Large Language Models, vector databases, or external AI APIs. It relies on a mathematical multi-factor formula.
 - **Modular Design for Future ML**: The matching service is designed with a clean, decoupled interface so that a future trained machine learning model or route optimization engine can augment or replace the heuristic without breaking API contracts or downstream services.
 - **Explainability**: Every match output includes a complete breakdown of component sub-scores so that recommendations can be audited and debugged.
-- **Configurable Heuristics**: All numeric weights and distance thresholds are **configurable MVP heuristics** defined in environment variables (`.env`), not hardcoded or claimed as scientifically validated constants.
+- **Configurable Heuristics**: All numeric weights and distance thresholds are **configurable MVP heuristics** defined in environment variables (`.env`), not hardcoded or asserted as scientifically validated constants.
 - **Synchronous Execution**: The matching algorithm executes **synchronously** within the `POST /api/v1/donations` request handler, immediately writing ranked rows to the PostgreSQL `matches` table and generating in-app notifications.
 - **Side-Effect Free Queries**: The endpoint `GET /api/v1/donations/{id}/matches` is purely a read-only query that retrieves pre-computed matches from the database with **zero side effects**.
 

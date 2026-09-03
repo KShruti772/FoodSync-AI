@@ -104,7 +104,7 @@ erDiagram
         string match_id FK "VARCHAR(36) [Nullable]"
         string title "VARCHAR(255)"
         text message "TEXT"
-        string type "MATCH_ALERT | CLAIM_CONFIRMATION | EXPIRY_WARNING | SYSTEM"
+        string type "MATCH_ALERT | RESERVATION_CONFIRMATION | EXPIRY_WARNING | SYSTEM"
         boolean is_read "BOOLEAN"
         timestamp created_at "TIMESTAMP WITH TIME ZONE"
     }
@@ -232,7 +232,7 @@ Stores database-backed in-app alerts for users.
 | `match_id` | `VARCHAR(36)` | **YES** | `FOREIGN KEY (matches.id) ON DELETE SET NULL` | Optional associated match (null for system alerts) |
 | `title` | `VARCHAR(255)` | NO | `NOT NULL` | Short alert headline |
 | `message` | `TEXT` | NO | `NOT NULL` | Alert body content |
-| `type` | `VARCHAR(64)` | NO | `CHECK (type IN ('MATCH_ALERT', 'CLAIM_CONFIRMATION', 'EXPIRY_WARNING', 'SYSTEM'))` | Notification category |
+| `type` | `VARCHAR(64)` | NO | `CHECK (type IN ('MATCH_ALERT', 'RESERVATION_CONFIRMATION', 'EXPIRY_WARNING', 'SYSTEM'))` | Notification category |
 | `is_read` | `BOOLEAN` | NO | `DEFAULT FALSE` | Read status |
 | `created_at` | `TIMESTAMPTZ` | NO | `DEFAULT CURRENT_TIMESTAMP` | Delivery timestamp |
 

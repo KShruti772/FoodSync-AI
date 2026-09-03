@@ -12,11 +12,59 @@ FoodSync AI follows a simple, beginner-friendly feature branch workflow. The `ma
 
 | Teammate | Role | Primary Assigned Branch | Scope & Responsibilities |
 | :--- | :--- | :--- | :--- |
-| **Shruti** | **Team Lead / Backend + AI / System Architecture** | `feature/backend-ai` | Backend implementation, authentication, APIs, business services, AI matching, architecture |
+| **Shruti** | **Team Lead / Backend + AI / System Architecture** | `feature/backend-ai` | Backend implementation, authentication, APIs, business services, AI matching engine, system architecture |
 | **Lokeshwari** | **Database Developer** | `feature/database` | PostgreSQL schema, SQLAlchemy models, repositories, Alembic migrations, database integrity |
-| **Atharva** | **Frontend Developer** | `feature/frontend` | Next.js frontend, UI components, client state, API integration |
-| **Vishwajeet** | **Testing / UI QA** | `feature/ui-testing` | Backend tests, integration tests, E2E tests, UI QA |
+| **Atharva** | **Frontend Developer** | `feature/frontend` | Next.js frontend implementation, UI components, client state, API integration, responsive UI, bug fixes |
+| **Vishwajeet** | **UI/UX Design & QA / Testing** | `feature/ui-testing` | UI/UX design and review, user flows, wireframes, screen requirements, UX consistency, accessibility/responsive reviews, test-case design, manual testing, E2E tests, bug reporting & regression testing |
 | **All Team** | **Integration / Staging** | `main` *(Protected)* | Stable production-ready codebase; updated exclusively via reviewed Pull Requests |
+
+### 1.1 Role Boundaries: Vishwajeet vs. Atharva
+
+#### Vishwajeet (`feature/ui-testing`): UI/UX Design & QA / Testing
+- **Primary Responsibilities**:
+  1. UI/UX design and review
+  2. User flows and user journey mapping
+  3. Wireframes and screen specifications
+  4. Screen requirements and design token consistency
+  5. UX consistency across all portals
+  6. Accessibility review (WCAG 2.1 AA, keyboard navigation, ARIA)
+  7. Responsive-design review across mobile, tablet, and desktop viewports
+  8. Manual exploratory, functional, and edge-case testing
+  9. Test-case design and test matrices
+  10. E2E and user-flow testing (`tests/e2e/`)
+  11. Bug reporting, defect logging, and regression testing
+- **NOT His Responsibility**:
+  - Backend implementation
+  - FastAPI routes and controllers
+  - Business domain logic
+  - AI matching engine
+  - Database implementation
+  - SQLAlchemy ORM models
+  - Alembic database migrations
+  - PostgreSQL management
+  - Authentication implementation
+  - Frontend architecture ownership
+  - Building Atharva's frontend code unless explicitly agreed
+
+#### Atharva (`feature/frontend`): Frontend Developer
+- **Primary Responsibilities**:
+  1. Implement the production frontend based on Vishwajeet's UI/UX specification
+  2. Build Next.js pages and reusable UI components
+  3. Integrate backend REST APIs (`/api/v1`)
+  4. Handle frontend states (loading, empty, error, success, disabled, unauthorized)
+  5. Implement responsive UI with Tailwind CSS
+  6. Fix frontend bugs and layout defects reported by Vishwajeet
+
+### 1.2 Team Collaboration Flow
+```mermaid
+flowchart TD
+    V1["1. Vishwajeet\n(User flows / wireframes / UI specifications)"] --> S1{"2. Shruti\n(Reviews product / API behavior when needed)"}
+    S1 --> A1["3. Atharva\n(Implements Next.js frontend & components)"]
+    A1 --> V2["4. Vishwajeet\n(Executes manual & E2E QA testing)"]
+    V2 --> V3{"5. Defects / Issues Found?"}
+    V3 -- Yes --> V4["6. Vishwajeet reports bug details"] --> A2["7. Atharva fixes frontend code"] --> V2
+    V3 -- No --> PR["8. Ready for Pull Request Review"]
+```
 
 ---
 
@@ -141,7 +189,7 @@ Use **Conventional Commits** for clear, structured history:
 - `feat(scope)`: A new feature or endpoint (e.g. `feat(donation): add quantity validation`)
 - `fix(scope)`: A bug fix (e.g. `fix(auth): correct argon2 hashing verification`)
 - `docs(scope)`: Documentation updates (e.g. `docs(api): update donation status enum`)
-- `test(scope)`: Adding or updating test cases (e.g. `test(claim): add double claim concurrency test`)
+- `test(scope)`: Adding or updating test cases (e.g. `test(reservation): add double reservation concurrency test`)
 - `refactor(scope)`: Restructuring code without changing functionality (e.g. `refactor(repo): extract query filters`)
 
 ---

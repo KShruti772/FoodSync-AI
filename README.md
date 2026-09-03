@@ -60,9 +60,9 @@ All features and development workflows are governed by these authoritative contr
 | Teammate | Role | Primary Assigned Branch |
 | :--- | :--- | :--- |
 | **Shruti** | **Team Lead / Backend + AI / System Architecture** | `feature/backend-ai` |
-| **Lokeshwari** | **Database Developer** | `feature/database` |
-| **Atharva** | **Frontend Developer** | `feature/frontend` |
-| **Vishwajeet** | **Testing / UI QA** | `feature/ui-testing` |
+| **Lokeshwari** | **Database Developer (PostgreSQL / SQLAlchemy)** | `feature/database` |
+| **Atharva** | **Frontend Developer (Next.js / TypeScript / Tailwind)** | `feature/frontend` |
+| **Vishwajeet** | **UI/UX Design & Testing / QA** | `feature/ui-testing` |
 | **All Team** | **Integration / Staging** | `main` *(Protected)* |
 
 ---

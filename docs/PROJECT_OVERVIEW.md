@@ -11,7 +11,7 @@
 Every day, commercial food providers (such as restaurants, caterers, grocery stores, and event organizers) produce surplus, edible food that goes to waste due to the lack of a rapid, reliable redistribution channel. At the same time, nearby recipient organizations (such as shelters, food banks, community kitchens, and orphanages) struggle with food insecurity and inconsistent supplies.
 
 Key challenges in surplus food recovery:
-- **Time Sensitivity**: Cooked and perishable foods have a short shelf-life and must be claimed and transported within hours.
+- **Time Sensitivity**: Cooked and perishable foods have a short shelf-life and must be reserved and transported within hours.
 - **Coordination Friction**: Manual phone calls and ad-hoc coordination lead to miscommunication, delayed pickups, and food spoilage.
 - **Mismatch in Needs**: Donated food quantities and dietary types often do not match the immediate storage or distribution capacity of receiving organizations.
 - **Lack of Tracking**: Donors and recipients have minimal visibility into redistribution metrics, rescue history, or quantified social and environmental impact.
@@ -118,7 +118,7 @@ To ensure reliable delivery by a small student engineering team, the scope is st
 | **7** | **Donation Lifecycle State Machine** | Strict state transitions: `AVAILABLE` $\rightarrow$ `RESERVED` $\rightarrow$ `COMPLETED` (terminal: `EXPIRED`, `CANCELLED`). | `feature/backend-ai`, `feature/database` |
 | **8** | **In-App Notifications** | Database-backed alerts fetched by frontend via REST polling (`GET /api/v1/notifications`). | `feature/backend-ai`, `feature/frontend` |
 | **9** | **Basic Impact Metrics** | Transparent calculation of total meals rescued, food weight (kg), and $\text{CO}_2$ emissions prevented. | `feature/backend-ai` |
-| **10** | **Automated Tests** | Pytest backend unit/integration tests, Vitest component tests, and Playwright E2E tests. | `feature/ui-testing` |
+| **10** | **UI/UX Design & QA Testing** | UI/UX specifications, user journeys, responsive/a11y reviews, test-case matrices, and automated E2E tests. | `feature/ui-testing` |
 
 ---
 

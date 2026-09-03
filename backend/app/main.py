@@ -1,6 +1,6 @@
 """FoodSync AI — FastAPI Application Entry Point.
 
-Status: Scaffolding Placeholder (Implementation begins on feature/backend)
+Status: Scaffolding Placeholder (Implementation begins on feature/backend-ai)
 Reference: docs/ARCHITECTURE.md and docs/API_CONTRACT.md
 """
 

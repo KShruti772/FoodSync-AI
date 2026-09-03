@@ -12,7 +12,7 @@ Every developer must adhere strictly to the frozen technology stack:
 - **Frontend**: Next.js (TypeScript) + Tailwind CSS (App Router)
 - **Backend**: Python + FastAPI + Pydantic + SQLAlchemy 2.x
 - **Database & Migrations**: PostgreSQL 15+ + Alembic
-- **Authentication**: Argon2id + Short-lived JWT access tokens
+- **Authentication**: Argon2id + Short-lived JWT access tokens (24h)
 - **Testing**: Pytest + HTTPX (Backend), Vitest (Frontend), Playwright (E2E)
 - **API Architecture**: REST (JSON over HTTP at `/api/v1`)
 
@@ -54,12 +54,12 @@ FoodSync-AI/
 │   │   ├── provider/                  # Food Provider dashboard & donation forms
 │   │   │   ├── page.tsx
 │   │   │   └── create/page.tsx
-│   │   └── recipient/                 # Recipient organization dashboard & claims
+│   │   └── recipient/                 # Recipient organization dashboard & reservations
 │   │       ├── page.tsx
 │   │       └── profile/page.tsx
 │   ├── components/                    # Reusable UI components
 │   │   ├── common/                    # Button, Modal, StatusBadge, InputField, LoadingSkeleton
-│   │   └── domain/                    # DonationCard, MatchCard, ClaimActionModal, ImpactWidget
+│   │   └── domain/                    # DonationCard, MatchCard, MatchActionModal, ImpactWidget
 │   ├── hooks/                         # Custom React hooks (useAuth, useNotifications)
 │   ├── lib/                           # Frontend utility libraries & Tailwind helpers
 │   ├── services/                      # API client fetch wrappers (calling FastAPI)
@@ -77,12 +77,13 @@ FoodSync-AI/
 │   ├── app/
 │   │   ├── main.py                    # FastAPI application initialization & router mounting
 │   │   ├── api/                       # FastAPI route controllers (/api/v1)
-│   │   │   ├── auth.py
-│   │   │   ├── donations.py
-│   │   │   ├── recipients.py
-│   │   │   ├── matches.py
-│   │   │   ├── notifications.py
-│   │   │   └── impact.py
+│   │   │   └── v1/                    # Version 1 API routers
+│   │   │       ├── auth.py
+│   │   │       ├── donations.py
+│   │   │       ├── recipients.py
+│   │   │       ├── matches.py
+│   │   │       ├── notifications.py
+│   │   │       └── impact.py
 │   │   ├── core/                      # Core configuration, security, and database session
 │   │   │   ├── config.py              # Pydantic BaseSettings environment loader
 │   │   │   ├── database.py            # SQLAlchemy 2.x engine & sessionmaker factory
@@ -133,7 +134,7 @@ FoodSync-AI/
 └── tests/                             # E2E test suites
     └── e2e/                           # End-to-End Browser Journeys (Playwright)
         └── flows/
-            └── donation_to_claim.spec.ts
+            └── donation_to_reservation.spec.ts
 ```
 
 ---
@@ -164,20 +165,53 @@ flowchart TD
 
 | Feature / Responsibility | Designated Location | Owner & Branch |
 | :--- | :--- | :--- |
-| **Next.js UI & Components** | `frontend/app/`, `frontend/components/` | Atharva (`feature/frontend`) |
-| **Frontend API Client & State** | `frontend/services/api.ts`, `frontend/hooks/` | Atharva (`feature/frontend`) |
+| **Frontend Implementation (Pages & Components)** | `frontend/app/`, `frontend/components/` | Atharva (`feature/frontend`) |
+| **Frontend API Client & Client State** | `frontend/services/api.ts`, `frontend/hooks/` | Atharva (`feature/frontend`) |
+| **UI/UX Design, Specifications & Wireframes** | `docs/UI_GUIDELINES.md` | Vishwajeet (`feature/ui-testing`) |
+| **UI/UX Reviews & Accessibility QA** | Design & UI review | Vishwajeet (`feature/ui-testing`) |
+| **Test Case Design & Manual QA** | `docs/TESTING_GUIDE.md` | Vishwajeet (`feature/ui-testing`) |
+| **E2E & UI Component Test Specs** | `tests/e2e/`, `frontend/components/__tests__/` | Vishwajeet (`feature/ui-testing`) |
 | **FastAPI Route Controllers** | `backend/app/api/` | Shruti (`feature/backend-ai`) |
 | **Core Config & Security Middleware** | `backend/app/core/` | Shruti (`feature/backend-ai`) |
 | **Pydantic Validation Schemas** | `backend/app/schemas/` | Shruti (`feature/backend-ai`) |
 | **Business Domain Services** | `backend/app/services/` | Shruti (`feature/backend-ai`) |
 | **Backend Utilities** | `backend/app/utils/` | Shruti (`feature/backend-ai`) |
 | **AI Matching Engine** | `backend/app/services/matching/` | Shruti (`feature/backend-ai`) |
-| **SQLAlchemy Models & Integrity** | `backend/app/models/` | Lokeshwari (`feature/database`) |
+| **SQLAlchemy Models & Constraints** | `backend/app/models/` | Lokeshwari (`feature/database`) |
 | **Alembic Database Migrations** | `backend/alembic/` | Lokeshwari (`feature/database`) |
 | **Data Repositories** | `backend/app/repositories/` | Lokeshwari (`feature/database`) |
-| **Backend & Integration Tests** | `backend/tests/` | Vishwajeet (`feature/ui-testing`) |
-| **E2E & UI Component Tests** | `tests/e2e/`, `frontend/components/__tests__/` | Vishwajeet (`feature/ui-testing`) |
+| **Backend Unit & Integration Tests** | `backend/tests/` | Shruti (`feature/backend-ai`) / Vishwajeet (`feature/ui-testing`) |
 | **Architecture & Contracts** | `docs/*.md` | Shruti (Team Lead) / All |
+
+### 4.1 Role Boundaries: Vishwajeet vs. Atharva
+
+#### Vishwajeet (`feature/ui-testing`): UI/UX Design & QA Testing
+- **Primary Scope**:
+  1. UI/UX design, specifications, and layout reviews
+  2. User flows and journey mapping
+  3. Screen requirements and wireframes
+  4. UX consistency across the application
+  5. Accessibility (a11y) review and compliance
+  6. Responsive-design review across device viewports
+  7. Test-case design and test matrices
+  8. Manual exploratory and functional testing
+  9. E2E browser and user-flow testing (`tests/e2e/`)
+  10. Bug reporting, issue tracking, and regression testing
+- **Out of Scope (NOT Vishwajeet's Responsibility)**:
+  - Backend implementation, FastAPI routes, or business domain services
+  - AI matching engine development
+  - Database implementation, SQLAlchemy declarative models, Alembic migrations, or PostgreSQL management
+  - Authentication implementation or security middleware
+  - Frontend architecture ownership
+  - Building Atharva's production frontend code unless explicitly agreed
+
+#### Atharva (`feature/frontend`): Frontend Developer
+- **Primary Scope**:
+  1. Implements Next.js pages and reusable components according to Vishwajeet's UI/UX specifications
+  2. Integrates backend REST APIs (`/api/v1`)
+  3. Handles client-side state and UI feedback states (loading, empty, error, success, disabled, unauthorized)
+  4. Implements mobile-first responsive styling with Tailwind CSS
+  5. Fixes frontend defects and layout issues reported by Vishwajeet
 
 ---
 
@@ -189,7 +223,7 @@ flowchart TD
   - Functions & Variables: `snake_case` (e.g., `calculate_distance()`, `current_user`)
   - Constants: `SCREAMING_SNAKE_CASE` (e.g., `DEFAULT_MAX_RADIUS_KM = 15.0`)
 - **TypeScript / React (Frontend)**:
-  - Component Files: `PascalCase.tsx` (e.g., `DonationCard.tsx`, `ClaimActionModal.tsx`)
+  - Component Files: `PascalCase.tsx` (e.g., `DonationCard.tsx`, `MatchActionModal.tsx`)
   - Utility & Service Files: `camelCase.ts` or `kebab-case.ts` (e.g., `api.ts`, `formatters.ts`)
   - Functions & Variables: `camelCase` (e.g., `fetchDonations()`, `isLoading`)
   - Types & Interfaces: `PascalCase` (e.g., `DonationResponse`, `UserProfile`)
@@ -218,7 +252,7 @@ Every developer must execute these steps before writing code:
 ```mermaid
 flowchart TD
     A["1. Pull latest main\n(git switch main && git pull origin main)"] --> B["2. Merge main into feature branch\n(git switch <branch> && git merge main)"]
-    B --> C["3. Read relevant contract in docs/\n(API_CONTRACT.md, DATABASE_SCHEMA.md)"]
+    B --> C["3. Read relevant contract in docs/\n(API_CONTRACT.md, DATABASE_SCHEMA.md, UI_GUIDELINES.md)"]
     C --> D["4. Check for existing utilities\n(Avoid duplicate helpers)"]
     D --> E["5. Implement smallest appropriate change\n(Stay within assigned module folder)"]
     E --> F["6. Run local tests\n(pytest or npm run test)"]

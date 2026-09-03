@@ -30,7 +30,7 @@ The FoodSync AI MVP stack is frozen as follows:
    - **Automated Contracts & Validation**: FastAPI natively couples Pydantic validation with automatic OpenAPI (Swagger) schema generation, ensuring strict contract enforcement.
 2. **Why PostgreSQL**:
    - **Relational Integrity**: FoodSync AI operates heavily connected business entities (users, donations, recipient profiles, matches, notifications, impact logs) that require strict foreign key cascades, check constraints, and ACID transactions.
-   - **Concurrency Safety**: Atomic conditional updates and row-level locking in PostgreSQL prevent double-claim race conditions when multiple recipients view the same surplus listing.
+   - **Concurrency Safety**: Atomic conditional updates and row-level locking in PostgreSQL prevent double-reservation race conditions when multiple recipients view the same surplus listing.
    - *Note on SQLite/MongoDB*: MongoDB is not supported. SQLite is never used for production and may only serve as an optional, isolated in-memory test utility.
 
 ---
@@ -180,7 +180,7 @@ flowchart TD
 - Unlocks exact pickup details and donor contact info to the authorized accepted recipient.
 
 ### 6. Notification Service
-- Creates database records in `notifications` table on match generation, claim/reservation, and completion.
+- Creates database records in `notifications` table on match generation, reservation, and completion.
 - Serves unread alerts to frontend dashboards via standard REST polling (`GET /api/v1/notifications`).
 
 ### 7. Impact Service
