@@ -11,7 +11,7 @@
 
 ## 🌟 Core Team Principle
 
-> **"Atharva brings FoodSync AI to life in the browser. He implements the production Next.js web application, TypeScript components, Tailwind CSS styling, client-side state, and REST API communication based on Vishwajeet's UI/UX specifications. Vishwajeet leads UI/UX design specifications, wireframes, and QA testing across all test suites. Shubham implements the FastAPI backend, API routes, and domain services. Lokeshwari builds the database models, repositories, and migrations. Shruti leads the team, system architecture, and AI matching engine."**
+> **"Atharva brings FoodSync AI to life in the browser. He implements the production Next.js web application, TypeScript components, Tailwind CSS styling, client-side state, and REST API communication based on Vishwajeet's UI/UX specifications. Vishwajeet leads UI/UX design specifications, wireframes, and QA testing across all test suites. Shubham implements the FastAPI backend, API routes, and domain services. Lokeshwari builds the database models, repositories, and migrations. Shruti leads the team, system architecture, and the deterministic matching engine."**
 
 ---
 
@@ -31,20 +31,20 @@
 
 Welcome to the **FoodSync AI** engineering team, Atharva!
 
-As the **Frontend Developer**, you own the entire user-facing web experience. You transform wireframes, user journeys, and REST API contracts into an intuitive, responsive, accessible, and fast web application.
+As the **Frontend Developer**, you own the entire user-facing web client. You transform wireframes, user journeys, and REST API contracts into an intuitive, responsive, accessible, and fast web application.
 
 ### Your High-Level Responsibilities:
-1. **Next.js App Router**: Build structured pages and layouts in `frontend/app/` for Food Providers and Recipients.
+1. **Next.js App Router**: Build structured pages and layouts for Food Providers and Recipients in `frontend/app/`.
 2. **Modular UI Components**: Construct reusable, accessible React components in `frontend/components/` using Tailwind CSS.
-3. **TypeScript Interfaces**: Maintain strict type definitions in `frontend/types/` matching backend Pydantic schemas.
-4. **API Integration & Client Services**: Implement clean HTTP fetch wrappers in `frontend/services/` to communicate with Shubham's FastAPI backend.
-5. **Client State & Custom Hooks**: Manage authentication tokens, current user session, and in-app notification polling via `frontend/hooks/`.
-6. **UI Feedback States**: Implement the 6 mandatory UI states (Loading, Empty, Success, Error, Disabled, Unauthorized) across every view.
-7. **Privacy UX Compliance**: Strictly enforce location privacy (masking exact street addresses until a match is accepted).
+3. **TypeScript API Interfaces**: Maintain strict TypeScript API and domain types in `frontend/types/` aligned with the approved API contract ([`docs/API_CONTRACT.md`](file:///Users/shrutikondabathula/FoodSync-AI/docs/API_CONTRACT.md)).
+4. **API Integration & Client Services**: Implement HTTP communication in `frontend/services/` using the approved backend API contract.
+5. **Client State & Session Management**: Manage client session state, authentication behavior, and periodic notification refresh according to the approved architecture.
+6. **UI Feedback States**: Implement the applicable mandatory UI states: Loading, Empty, Success, Error, Disabled, Unauthorized.
+7. **Privacy UX Compliance**: Render only information authorized and returned by the backend.
 
 ---
 
-# SECTION 2 — Frontend vs. UI/UX (Crucial Distinction)
+# SECTION 2 — Frontend vs. UI/UX
 
 To ensure seamless teamwork between Atharva and Vishwajeet, understand this separation of responsibilities:
 
@@ -60,7 +60,9 @@ To ensure seamless teamwork between Atharva and Vishwajeet, understand this sepa
 │ • Writes the production Next.js, React, and TypeScript code.│
 │ • Styles components using Tailwind CSS utility classes.     │
 │ • Connects buttons and forms to FastAPI REST endpoints.     │
-│ • Manages client state, localStorage, and token lifecycle.  │
+│ • Manages client-side session state and authentication      │
+│   behavior according to the approved authentication         │
+│   transport and storage mechanism.                          │
 │ • Resolves frontend bugs reported by Vishwajeet.            │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -73,77 +75,81 @@ To ensure seamless teamwork between Atharva and Vishwajeet, understand this sepa
 
 # SECTION 3 — What You Own
 
-Atharva has primary implementation ownership over the entire `frontend/` directory:
+Atharva has primary implementation ownership over the planned `frontend/` directory structure:
 
 ```text
 frontend/
-├── app/                               # ⭐ Next.js App Router (Pages & Layouts)
-│   ├── layout.tsx                     # Root shell with Navbar & notification polling
-│   ├── page.tsx                       # Public Landing page with impact statistics
-│   ├── login/page.tsx                 # User authentication form
-│   ├── register/page.tsx              # Provider & Recipient registration form
-│   ├── provider/                      # Food Provider portal
-│   │   ├── page.tsx                   # Active listings dashboard & match status
-│   │   └── create/page.tsx            # Surplus food donation creation form
-│   └── recipient/                     # Recipient Organization portal
-│       ├── page.tsx                   # Match inbox & active reservations
-│       └── profile/page.tsx           # Capacity & dietary preferences management
+├── app/
+│   ├── layout.tsx
+│   ├── page.tsx
+│   ├── login/
+│   │   └── page.tsx
+│   ├── register/
+│   │   └── page.tsx
+│   ├── provider/
+│   │   ├── page.tsx
+│   │   └── create/
+│   │       └── page.tsx
+│   └── recipient/
+│       ├── page.tsx
+│       └── profile/
+│           └── page.tsx
 │
-├── components/                        # ⭐ Reusable UI Component Library
-│   ├── common/                        # Generic primitives (Button, InputField, Modal, etc.)
-│   ├── navigation/                    # Navbar, Sidebar, UserMenu
-│   └── domain/                        # Business widgets (DonationCard, MatchCard, NotificationBell)
+├── components/
+│   ├── common/
+│   ├── navigation/
+│   └── domain/
 │
-├── hooks/                             # ⭐ Custom React Hooks
-│   ├── useAuth.ts                     # Auth context, JWT handling, current user state
-│   └── useNotifications.ts            # 30-second REST polling for in-app alerts
+├── hooks/
+│   ├── useAuth.ts
+│   └── useNotifications.ts
 │
-├── lib/                               # ⭐ Utility Helpers
-│   ├── utils.ts                       # Tailwind class merge (clsx / tailwind-merge)
-│   └── formatters.ts                  # Date, time, and distance display formatters
+├── lib/
+│   ├── utils.ts
+│   └── formatters.ts
 │
-├── services/                          # ⭐ REST API Client Wrappers
-│   ├── apiClient.ts                   # Centralized Fetch client with JWT header injection
-│   ├── authService.ts                 # /api/v1/auth endpoints
-│   ├── donationService.ts             # /api/v1/donations endpoints
-│   ├── matchService.ts                # /api/v1/matches endpoints
-│   ├── notificationService.ts         # /api/v1/notifications endpoints
-│   └── impactService.ts               # /api/v1/impact endpoints
+├── services/
+│   ├── apiClient.ts
+│   ├── authService.ts
+│   ├── donationService.ts
+│   ├── matchService.ts
+│   ├── notificationService.ts
+│   └── impactService.ts
 │
-└── types/                             # ⭐ TypeScript Interfaces (matching API Contracts)
+└── types/
 ```
 
 ---
 
-# SECTION 4 — What You Do NOT Own
+# SECTION 4 — What You Do NOT Own & Strict Boundary Rules
 
 | Area / Directory | Primary Owner | Why Atharva Does NOT Own It |
-| :--- | :--- | :--- |
-| `backend/app/api/` | **Shubham** (`feature/backend`) | Shubham builds the FastAPI REST controllers. Atharva calls them via HTTP. |
-| `backend/app/core/`, `schemas/`, `services/` | **Shubham** (`feature/backend`) | Backend business logic, Pydantic schemas, and security middleware. |
-| `backend/app/services/matching/` | **Shruti** (`feature/ai-matching`) | Mathematical AI matching algorithm and scoring weights. |
-| `backend/app/models/`, `repositories/`, `alembic/` | **Lokeshwari** (`feature/database`) | PostgreSQL database models and migrations. **Frontend NEVER connects directly to PostgreSQL.** |
-| `frontend/components/__tests__/`, `backend/tests/`, `tests/e2e/` | **Vishwajeet** (`feature/ui-testing`) | Vishwajeet owns test suite authoring. Atharva cooperates by fixing discovered frontend defects. |
+|---|---|---|
+| `backend/app/api/`, `backend/app/core/`, `backend/app/schemas/`, `backend/app/services/` except matching, `backend/app/utils/`, `backend/app/main.py` | **Shubham** (`feature/backend`) | Backend API controllers, business logic, schemas, and security infrastructure. |
+| `backend/app/services/matching/` | **Shruti** (`feature/ai-matching`) | Deterministic matching algorithm and scoring weights. |
+| `backend/app/models/`, `backend/app/repositories/`, `backend/alembic/` | **Lokeshwari** (`feature/database`) | PostgreSQL models, repositories, constraints, and migrations. |
+| `frontend/components/__tests__/`, `backend/tests/`, `tests/e2e/` | **Vishwajeet** (`feature/ui-testing`) | Vishwajeet owns test-suite authoring and QA. Atharva fixes frontend defects discovered by QA. |
+
+> [!IMPORTANT]
+> **Strict Team Boundary Rule**: Atharva must not modify another teammate's implementation area to bypass ownership boundaries. Changes outside `frontend/` require direct coordination with the relevant owner.
 
 ---
 
-# SECTION 5 — Frontend Basics (Beginner Guide)
+# SECTION 5 — Frontend Basics
 
-If you are new to modern web application frameworks, here is a simple breakdown:
-
-| Concept | Plain English Definition | FoodSync AI Example |
-| :--- | :--- | :--- |
-| **Frontend** | The client application running inside the user's web browser. | The interactive web portal accessible at `http://localhost:3000`. |
-| **Next.js** | A production React framework providing App Router, routing, and optimization. | Managing routes like `/provider/create` without manual routing libraries. |
-| **React** | A JavaScript library for building user interfaces out of reusable components. | Rendering the interactive `DonationCard` when surplus food is posted. |
-| **TypeScript** | JavaScript with strict type checking to prevent runtime bugs. | Enforcing that `quantity_meals` is always a number, not a string. |
-| **Tailwind CSS** | A utility-first CSS framework for rapid, consistent styling. | Using `bg-emerald-500 text-white rounded-lg` instead of raw CSS files. |
-| **Component** | A self-contained, reusable piece of UI (like a Lego brick). | `Button.tsx`, `InputField.tsx`, `MatchActionModal.tsx`. |
-| **Page** | A component mapped directly to a browser URL route. | `frontend/app/provider/page.tsx` mapped to `/provider`. |
-| **Hook** | A special React function for managing state and side effects. | `useAuth()` providing the currently logged-in user object. |
-| **Client State** | Temporary data stored in browser memory during a user session. | Remembering form inputs or whether a modal is currently open. |
-| **API Client** | Code responsible for sending HTTP requests to the backend server. | `apiClient.post('/api/v1/matches/42/accept')`. |
-| **JSON** | Text format used to transmit structured data between frontend and backend. | `{"email": "provider@cafe.com", "role": "FOOD_PROVIDER"}`. |
+| Concept | Plain-English Definition | FoodSync AI Example |
+|---|---|---|
+| **Frontend** | The application users interact with in their browser. | FoodSync AI web portal. |
+| **Next.js** | React framework used for routing, rendering, and application structure. | `/provider/create` page. |
+| **React** | Library for building reusable user-interface components. | `DonationCard`. |
+| **TypeScript** | JavaScript with static type checking. | Ensuring `quantity_meals` has the expected type. |
+| **Tailwind CSS** | Utility-first CSS framework. | Responsive styling with utility classes. |
+| **Component** | Reusable UI building block. | `Button`, `InputField`, `MatchCard`. |
+| **Page** | Component associated with an application route. | `frontend/app/provider/page.tsx`. |
+| **Hook** | React function for reusable state or side-effect logic. | `useAuth()`. |
+| **Client State** | Temporary UI/session information managed by the browser. | Modal state or current session presentation. |
+| **API Client** | Code that sends HTTP requests to the backend. | Calling `/api/v1/matches/{id}/accept`. |
+| **JSON** | Structured text format used for API requests/responses. | User profile or donation response. |
 
 ---
 
@@ -176,13 +182,13 @@ FoodSync AI adheres to the frozen design tokens specified in [`docs/UI_GUIDELINE
   - `AVAILABLE`: Sky / Blue (`bg-sky-100 text-sky-800`)
   - `RESERVED`: Amber / Yellow (`bg-amber-100 text-amber-800`)
   - `COMPLETED`: Emerald / Green (`bg-emerald-100 text-emerald-800`)
-  - `CANCELLED` / `EXPIRED`: Slate / Red (`bg-slate-100 text-slate-700`)
+  - `CANCELLED` / `EXPIRED`: Slate (`bg-slate-100 text-slate-700`)
 
 ---
 
-# SECTION 7 — Component Architecture (`frontend/components/`)
+# SECTION 7 — Component Architecture
 
-Atharva organizes components into three clean tiers:
+Atharva organizes components into three clean tiers of planned and approved components:
 
 ### 1. Common Primitives (`frontend/components/common/`)
 - `Button.tsx`: Variants (`primary`, `secondary`, `outline`, `danger`) with loading spinner state.
@@ -194,30 +200,27 @@ Atharva organizes components into three clean tiers:
 - `EmptyState.tsx`: Illustrated placeholder for zero-item lists.
 
 ### 2. Navigation Elements (`frontend/components/navigation/`)
-- `Navbar.tsx`: Header containing brand logo, user role badge, and `NotificationBell`.
+- `Navbar.tsx`: Header containing brand logo, user role badge, and notification indicator.
 - `Sidebar.tsx`: Mobile and desktop responsive navigation menu.
+- `NotificationBell.tsx`: Dropdown feed displaying polled alerts.
 
 ### 3. Domain Business Widgets (`frontend/components/domain/`)
 - `DonationCard.tsx`: Summary card rendering surplus listings with masked address.
 - `MatchCard.tsx`: Recipient card rendering compatibility score breakdown.
-- `MatchActionModal.tsx`: Modal for accepting or rejecting a proposed match.  
-  *(Note on Naming: Use `MatchActionModal`, not legacy `ClaimActionModal`).*
+- `MatchActionModal.tsx`: Modal for accepting or rejecting a proposed match. *(Always use `MatchActionModal`, never `ClaimActionModal`).*
 - `ImpactWidget.tsx`: Stat cards showing rescued meals and estimated $\text{CO}_2$ saved.
-- `NotificationBell.tsx`: Dropdown feed displaying polled alerts.
 
 ---
 
-# SECTION 8 — Pages & Application Routing (`frontend/app/`)
+# SECTION 8 — Pages & Application Routing
 
 ```mermaid
 flowchart TD
     PublicHome["/ (Public Landing Page)"]
     Login["/login (Sign In)"]
     Register["/register (Sign Up)"]
-
     ProviderHome["/provider (Provider Dashboard)"]
     CreateDonation["/provider/create (Post Surplus Form)"]
-
     RecipientHome["/recipient (Match Inbox & Active Reservations)"]
     RecipientProfile["/recipient/profile (Capacity & Preferences)"]
 
@@ -230,19 +233,23 @@ flowchart TD
 ```
 
 > [!IMPORTANT]
-> **No Admin Web Screens in MVP**: Administrator accounts are provisioned via backend deployment CLI. Do not invent unapproved `/admin` web routes.
+> **No Admin Web Screens in MVP**: `ADMIN` may exist as a backend authorization role, but the MVP contains no Admin web dashboard and no `/admin` frontend route. Administrator accounts are provisioned via backend deployment CLI. Do not invent unapproved `/admin` web routes or navigation items.
 
 ---
 
-# SECTION 9 — Custom React Hooks (`frontend/hooks/`)
+# SECTION 9 — Custom React Hooks
 
 ### 1. `useAuth.ts`
-Manages user authentication state, token storage, and logout:
-```typescript
+Manages client-side session state and interaction with the backend authentication API:
+- Interacts with `POST /api/v1/auth/login`, `POST /api/v1/auth/register`, and `GET /api/v1/auth/me`.
+- Manages the client-side session token according to the approved API transport contract.
+- Provides current user session data (`id`, `email`, `role`, `organization_name`, `is_verified`).
+- **Authorization Boundary Reminder**: `useAuth` is strictly for frontend session presentation. The FastAPI backend remains the sole authority for JWT validation, role authorization, and resource ownership.
+
+```ts
 // Conceptual structure of useAuth:
 export interface AuthContextType {
   user: UserProfile | null;
-  token: string | null;
   login: (credentials: LoginCredentials) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
@@ -251,157 +258,185 @@ export interface AuthContextType {
 ```
 
 ### 2. `useNotifications.ts`
-Polls the backend REST endpoint every 30 seconds for real-time in-app alerts:
-```typescript
-// Polls GET /api/v1/notifications every 30s
-export function useNotifications() {
-  // Fetches unread alerts, tracks unread count badge, provides markAsRead()
-}
-```
+Polls the backend REST endpoint (`GET /api/v1/notifications`) every 30 seconds for periodic notification refresh:
+- Acts strictly as a frontend periodic refresh mechanism; the backend remains the source of truth.
+- Tracks unread count for `NotificationBell` and provides `markAsRead(notificationId)` calling `PATCH /api/v1/notifications/{id}/read`.
+- **Implementation Safety Note**: The polling interval timer must be cleanly cleared on component unmount to prevent memory leaks and duplicate background timers.
+- Handles loading, empty, and error feedback states gracefully.
 
 ---
 
-# SECTION 10 — API Client & Communication (`frontend/services/`)
+# SECTION 10 — API Client & Communication
 
 The frontend communicates with FastAPI exclusively over HTTP REST. **There is zero direct connection to PostgreSQL.**
 
-### Centralized Fetch Client (`frontend/services/apiClient.ts`):
-```typescript
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+### API Base URL & Path Convention:
+- **Origin Only**: `NEXT_PUBLIC_API_URL` contains only the backend origin (`http://localhost:8000`).
+- **Endpoint Prefix**: All API service calls explicitly specify `/api/v1/...` (e.g. `/api/v1/auth/login`, `/api/v1/donations`, `/api/v1/matches/{id}/accept`).
+- **Safety Guarantee**: Combining `NEXT_PUBLIC_API_URL` (`http://localhost:8000`) with `/api/v1/...` guarantees clean URLs (`http://localhost:8000/api/v1/...`) and prevents double-prefix errors (`/api/v1/api/v1/...`).
 
-export async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-  
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...options.headers,
-  };
+### Conceptual API Client Usage:
+```ts
+// NEXT_PUBLIC_API_URL contains the backend origin only.
+// Example: http://localhost:8000
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+const BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-  if (response.status === 401) {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('access_token');
-      window.location.href = '/login';
-    }
-    throw new Error('Session expired. Please log in again.');
-  }
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error ${response.status}`);
-  }
-
-  return response.json();
-}
+// Service methods provide the complete /api/v1/... endpoint.
+apiRequest('/api/v1/matches/42/accept', {
+  method: 'POST',
+});
 ```
 
----
-
-# SECTION 11 — Authentication & Security Invariants
-
-1. **JWT Storage**: Store the access token securely in `localStorage` or `HttpOnly` cookies.
-2. **Frontend is NOT the Security Boundary**:
-   - The backend is the sole authority on role permissions, resource ownership, and donation states.
-   - Even if a user manually changes client state, the FastAPI backend will reject unauthorized API calls with `401` or `403`.
-   - Atharva uses client role checks strictly to provide a clean user experience (e.g. redirecting a Recipient away from `/provider/create`).
+> [!IMPORTANT]
+> **API Contract Authority**: [`docs/API_CONTRACT.md`](file:///Users/shrutikondabathula/FoodSync-AI/docs/API_CONTRACT.md) is the authoritative contract between frontend and backend. Atharva must not invent endpoints, request fields, response fields, or undocumented status codes. If the frontend and API contract disagree, do not silently adapt the frontend; coordinate with Shubham to update the contract through the agreed team process.
 
 ---
 
-# SECTION 12 — The 6 Mandatory UI States
+# SECTION 11 — Authentication & Security
 
-Every screen and data component implemented by Atharva must handle all 6 UI states gracefully:
+### 1. MVP Authentication:
+The backend uses signed JWT access tokens for authenticated API requests, as defined by [`docs/API_CONTRACT.md`](file:///Users/shrutikondabathula/FoodSync-AI/docs/API_CONTRACT.md).
 
-```text
-┌─────────────────┬────────────────────────────────────────────────────────────┐
-│ UI State        │ Implementation Requirement                                 │
-├─────────────────┼────────────────────────────────────────────────────────────┤
-│ 1. Loading      │ Render LoadingSkeleton cards with pulse animation.         │
-│                 │ Never display a freezing blank screen or raw spinner.      │
-├─────────────────┼────────────────────────────────────────────────────────────┤
-│ 2. Empty        │ Render EmptyState widget with friendly icon and CTA.       │
-│                 │ "No active donations found in your radius."                │
-├─────────────────┼────────────────────────────────────────────────────────────┤
-│ 3. Error        │ Render clear red alert box with a working "Retry" button.  │
-│                 │ Never display raw JSON HTTP error tracebacks to users.     │
-├─────────────────┼────────────────────────────────────────────────────────────┤
-│ 4. Success      │ Render data cards with color-coded StatusBadge and toast.  │
-│                 │ "Match accepted! Pickup coordination details unlocked."    │
-├─────────────────┼────────────────────────────────────────────────────────────┤
-│ 5. Disabled     │ Form submit buttons styled with disabled:opacity-50.       │
-│                 │ Prevent accidental double-clicks during in-flight network. │
-├─────────────────┼────────────────────────────────────────────────────────────┤
-│ 6. Unauthorized │ Permission warning banner or automated redirect to /login. │
-│                 │ Block unauthenticated access to protected portals.         │
-└─────────────────┴────────────────────────────────────────────────────────────┘
-```
+The frontend attaches the approved authentication credential to authenticated requests according to the transport mechanism defined in `docs/API_CONTRACT.md`.
+
+The frontend must use the authentication transport and browser storage mechanism agreed between frontend and backend and documented in `docs/API_CONTRACT.md`.
+
+Atharva must not independently invent or change the authentication transport or storage mechanism.
+
+### 2. Frontend is NOT the Security Boundary:
+The backend independently enforces JWT validation, RBAC permissions, resource ownership, and donation state transitions on every API request.
+
+Never trust client-supplied user IDs, roles, donation statuses, or match states.
+
+Atharva uses client role checks strictly to provide a smooth user experience (e.g. redirecting a Recipient away from `/provider/create`).
+
+### 3. No Secrets in Frontend:
+Never commit passwords, API secret keys, JWT secret keys, or database credentials to frontend code.
+
+`NEXT_PUBLIC_*` environment variables are baked into public browser JavaScript bundles and must **never** contain private secrets.
+
+Never commit `.env` or `.env.local` files to Git.
 
 ---
 
-# SECTION 13 — Location Privacy UX
+# SECTION 12 — Match Status vs. Donation Status Lifecycle Distinction
+
+Atharva must strictly distinguish between **Match Status** and **Donation Status** in components and state management:
+
+| Entity | Permitted States | Important Transitions |
+|---|---|---|
+| Match | `PROPOSED`, `ACCEPTED`, `REJECTED` | `PROPOSED` $\rightarrow$ `ACCEPTED` or `PROPOSED` $\rightarrow$ `REJECTED` |
+| Donation | `AVAILABLE`, `RESERVED`, `COMPLETED`, `EXPIRED`, `CANCELLED` | `AVAILABLE` $\rightarrow$ `RESERVED` $\rightarrow$ `COMPLETED`, plus documented expiry/cancellation transitions |
 
 > [!CAUTION]
-> **Data Privacy Invariant**: Hiding sensitive text using CSS (`display: none`) is NOT security. The frontend must only render what the backend authorizes.
+> **NO `CLAIMED` STATE / NO `/claim` ROUTE**: Do not implement a CLAIMED donation state, `/claim` route, `ClaimActionModal`, or claim-based donation lifecycle. The donation lifecycle strictly uses `AVAILABLE` $\rightarrow$ `RESERVED` $\rightarrow$ `COMPLETED`, with the documented expiry and cancellation transitions.
 
-```mermaid
-flowchart LR
-    subgraph PublicView ["1. BEFORE Acceptance (Browse / Match Feed)"]
-        P1["City / Neighborhood: 'Pune Central'"]
-        P2["Approximate Distance: '2.4 km away'"]
-        P3["Exact Street Address: [HIDDEN by Backend]"]
-        P4["Donor Phone: [HIDDEN by Backend]"]
-    end
-
-    subgraph UnlockedView ["2. AFTER Acceptance (Status = RESERVED)"]
-        U1["Full Street Address: 'Shop 14, MG Road, Pune'"]
-        U2["Donor Telephone: '+91 98765 43210'"]
-        U3["Handling Instructions: 'Bring thermal insulated bags'"]
-    end
-
-    PublicView -->|Recipient clicks 'Accept Match'| UnlockedView
-```
-
-- **Before Match Acceptance**: Render only `city_area` and `distance_km`.
-- **After Authorized Match Acceptance**: When `POST /api/v1/matches/{id}/accept` succeeds, transition UI to `RESERVED` and display full unlocked pickup details.
+- **When a Recipient Accepts a Match (`POST /api/v1/matches/{id}/accept`)**:
+  1. Match status transitions to `ACCEPTED`.
+  2. Donation status transitions to `RESERVED`.
+  3. Authorized full pickup address and provider contact information become available in the active coordination view.
+- **When a Recipient Rejects a Match (`POST /api/v1/matches/{id}/reject`)**:
+  1. Match status transitions to `REJECTED`.
+  2. Donation remains `AVAILABLE` for the next eligible candidate.
+  3. Protected pickup details remain hidden.
 
 ---
 
-# SECTION 14 — Matching UI & Explainability
+# SECTION 13 — The Applicable Mandatory UI States
 
-The MVP matching algorithm is **deterministic and explainable** ($w_{dist}=0.35, w_{urg}=0.30, w_{cap}=0.20, w_{req}=0.15$):
+Every API-driven or interactive view must implement the applicable mandatory UI states:
+
+| UI State | Implementation Requirement |
+|---|---|
+| **Loading** | Show appropriate loading feedback such as `LoadingSkeleton`. Do not leave a blank screen. |
+| **Empty** | Show `EmptyState` with useful guidance or CTA where applicable. |
+| **Error** | Show a clear user-friendly error and retry action where applicable. Never expose raw JSON or stack traces. |
+| **Success** | Show returned data and appropriate status feedback. |
+| **Disabled** | Disable in-flight actions and prevent duplicate submissions. |
+| **Unauthorized** | Redirect or show an appropriate authorization message. |
+
+---
+
+# SECTION 14 — Location Privacy UX & Address Reveal Invariant
+
+> [!CAUTION]
+> **Data Privacy Invariant**: CSS hiding is NOT security. The frontend must only render what the backend authorizes and returns.
+
+| Stage | Information Visible |
+|---|---|
+| Before authorized acceptance | City/neighborhood or approximate area and approximate distance |
+| Before authorized acceptance | Exact street address hidden |
+| Before authorized acceptance | Provider contact information hidden |
+| After authorized acceptance | Exact pickup address may be displayed if returned by backend |
+| After authorized acceptance | Authorized provider contact information may be displayed |
+| After authorized acceptance | Pickup/handling instructions may be displayed if authorized |
+
+- **Before Authorized Match Acceptance**: Display only approximate area and distance.
+- **After Authorized Match Acceptance**: When `POST /api/v1/matches/{id}/accept` succeeds and returns unlocked pickup details, render full address and provider contact information.
+- **Privacy Rule**: The frontend must **never** attempt to reconstruct, infer, derive, or expose protected location or contact information from other API fields.
+
+---
+
+# SECTION 15 — Matching UI & Deterministic Explainability
+
+The MVP matching engine is deterministic and explainable. It is a mathematical multi-factor heuristic ranking algorithm, not machine learning, an LLM, or AI prediction.
+
+The deterministic matching engine uses these configured weights:
+- **Distance** = `0.35`
+- **Urgency** = `0.30`
+- **Capacity** = `0.20`
+- **Requirement** = `0.15`
+
+> **Frontend Matching Rule**: The frontend displays the authoritative compatibility score and matched-factor values returned by the backend/API contract. It must **not** independently recompute, modify, or invent matching weights on the client.
 
 ### Atharva's Match UI Implementation:
-1. **Compatibility Badge**: Render the score percentage clearly (`bg-teal-600 text-white`, e.g., `"92% Match"`).
-2. **Score Factor Breakdown**: Display explanatory badges:
-   - **Distance**: `"2.4 km away (Within travel radius)"`
-   - **Urgency**: `"Expires in 3 hours"`
-   - **Capacity**: `"50 meals (Fits your daily capacity of 100)"`
-   - **Dietary**: `"Vegetarian matches your preference"`
-3. **Decision Actions**: Provide clear **"Accept Match"** and **"Decline"** buttons.  
-   *(Strictly avoid the word "Claim").*
+1. **Compatibility Badge**: Render the score percentage returned by the backend (e.g., `"92% Compatibility"`).
+2. **Score Factor Breakdown**: Display explanatory factor information from `matched_factors` according to the approved API response schema in [`docs/API_CONTRACT.md`](file:///Users/shrutikondabathula/FoodSync-AI/docs/API_CONTRACT.md):
+   - **Distance**: `"2.4 km away (Within travel radius)"` (`distance_score`)
+   - **Urgency**: `"Expires in 3 hours"` (`urgency_score`)
+   - **Capacity**: `"50 meals (Fits your daily capacity of 100)"` (`capacity_fit_score`)
+   - **Dietary**: `"Vegetarian matches your preference"` (`dietary_preference_score`)
+3. **Decision Actions**: Provide clear **"Accept Match"** and **"Decline"** buttons.
 
 ---
 
-# SECTION 15 — Accessibility (a11y) & Mobile Responsiveness
+# SECTION 16 — Impact Metrics Integration
 
-- **WCAG 2.1 AA Compliance**: Ensure a minimum contrast ratio of $4.5:1$ for body text against backgrounds (`text-slate-900` on `bg-white`).
-- **Keyboard Navigation**: All interactive elements (buttons, modals, dropdowns) must support `Tab`, `Enter`, and `Escape` key handling with focus rings (`focus:ring-2 focus:ring-emerald-500`).
-- **Form Labels**: Every input must have an associated `<label>` or explicit `aria-label`.
-- **Mobile-First Layout**: Use responsive Tailwind prefixes:
-  - Mobile ($375\text{px}$): Single-column stacked cards.
-  - Tablet ($768\text{px}$): Two-column grids with collapsable sidebar.
-  - Desktop ($1440\text{px}$): Multi-column dashboard with persistent navigation.
+The public landing page and dashboards display aggregate impact statistics fetched directly from `GET /api/v1/impact/summary` ([`docs/API_CONTRACT.md`](file:///Users/shrutikondabathula/FoodSync-AI/docs/API_CONTRACT.md)):
+- `total_meals_rescued`: Total aggregate meals rescued.
+- `total_food_weight_kg`: Total food weight in kg.
+- `total_co2_offset_kg`: Estimated carbon emissions saved.
+- `active_providers_count`: Number of active food providers.
+- `active_recipients_count`: Number of active recipient organizations.
+
+> **Contract Rule**: The frontend displays backend-provided values from the approved impact endpoint. The frontend does not invent calculation formulas or perform independent client-side impact calculations.
 
 ---
 
-# SECTION 16 — Testing Collaboration with Vishwajeet
+# SECTION 17 — Accessibility & Mobile Responsiveness
+
+- **WCAG 2.1 AA Compliance**: Ensure a minimum contrast ratio of 4.5:1 for normal body text against its background (`text-slate-900` on `bg-white`).
+- **Keyboard Navigation**:
+  - `Tab`: Sequential focus navigation with visible focus indicators.
+  - `Enter` / `Space`: Appropriate activation for buttons and interactive controls.
+  - `Escape`: Dismissible dialogs and modals.
+  - `Arrow Keys`: Use where the selected/custom interactive component requires them.
+  - Prefer native accessible HTML controls where appropriate instead of unnecessarily recreating browser keyboard behavior manually.
+- **Form Labels**: Every input must have an associated `<label>` or an appropriate accessible name such as `aria-label` where required.
+- **Mobile-First Layout**: Use responsive Tailwind prefixes adapting across:
+  - Mobile: 375px+
+  - Tablet: 768px+
+  - Desktop: 1440px+
+
+---
+
+# SECTION 18 — Testing Collaboration with Vishwajeet
 
 **Vishwajeet** (`feature/ui-testing`) is the primary owner and author of test suites:
 - `frontend/components/__tests__/` (Vitest Component UI Tests)
+- `backend/tests/` (Pytest Unit & Integration Tests)
 - `tests/e2e/` (Playwright Browser Journey Tests)
 
 ### How Atharva Cooperates with Vishwajeet:
@@ -412,90 +447,99 @@ The MVP matching algorithm is **deterministic and explainable** ($w_{dist}=0.35,
 
 ---
 
-# SECTION 17 — Working with Shubham (Backend Developer)
+# SECTION 19 — Working with Shubham
 
 - **API Contracts**: Coordinate with Shubham on request payload shapes and response keys defined in [`docs/API_CONTRACT.md`](file:///Users/shrutikondabathula/FoodSync-AI/docs/API_CONTRACT.md).
-- **HTTP Status Codes**: Ensure frontend handles backend error codes correctly (`400`, `401`, `403`, `404`, `409 Conflict`, `422 Unprocessable Entity`).
-- **Mock Data**: While Shubham implements endpoints, Atharva can use mock TypeScript fixtures matching the API contract to build UI components without blocking.
+- **HTTP Status Codes**: Ensure frontend handles backend error codes correctly (`400`, `401`, `403`, `404`, `409 Conflict`, `422 Unprocessable Entity`) without displaying raw stack traces.
+- **Mock Data**: While Shubham implements endpoints, Atharva can use mock TypeScript fixtures conforming strictly to `docs/API_CONTRACT.md` to build UI components without blocking. Mock data is for development/testing only and must not become an unofficial API specification or a source of invented fields.
 
 ---
 
-# SECTION 18 — Working with Shruti (Team Lead & AI)
+# SECTION 20 — Working with Shruti
 
 - **System Architecture**: Contact Shruti for high-level architectural decisions, scope adjustments, and cross-layer coordination.
-- **Matching Display Logic**: Confirm how heuristic sub-scores (`matched_factors`) are structured in the API response.
+- **Matching Display Logic**: Confirm the exact matching-factor structure with Shruti and Shubham before implementing detailed score breakdowns.
 
 ---
 
-# SECTION 19 — Git Workflow for `feature/frontend`
+# SECTION 21 — Git Workflow for feature/frontend
 
-Atharva works strictly on `feature/frontend`. **Never commit or push directly to `main`**.
+Atharva works strictly on `feature/frontend` and normally modifies only files under `frontend/`. If a change outside `frontend/` is required, coordinate with the relevant owner before modifying it. **Never commit or push directly to `main`**.
 
 ### Daily Step-by-Step Git Commands:
 
 ```bash
-# 1. Start of day: Check working directory is clean
+# 1. Start of day
 git status
 
-# 2. Switch to main and pull latest team integration
+# 2. Update main
 git switch main
 git pull origin main
 
-# 3. Switch to your frontend feature branch and merge main
+# 3. Update frontend branch
 git switch feature/frontend
 git merge main
 
-# 4. Implement components and pages under frontend/
+# 4. Implement frontend changes
 
-# 5. Verify local build and linting pass cleanly
+# 5. Validate when project scripts are initialized
 npm run lint
+npx tsc --noEmit
 
-# 6. Check modified files
+# 6. Review changes
 git status
 git diff
 
-# 7. Stage and commit with conventional messages
-git add frontend/
-git commit -m "feat(provider): implement surplus donation creation form and validation"
+# 7. Commit
+# Stage only the files intentionally changed for the task. Review git status and git diff before committing.
+git add <intended files>
+git commit -m "feat(provider): implement surplus donation creation form"
 
-# 8. Push to remote feature branch
+# 8. Push feature branch
 git push origin feature/frontend
 
-# 9. Open a Pull Request on GitHub (feature/frontend -> main)
+# 9. Open Pull Request
+# feature/frontend -> main
 ```
 
 ### Strict Git Rules:
 - ❌ **NO `git push --force`** on any branch.
+- ❌ **NO `git reset --hard`** on shared integration points.
 - ❌ **NO direct pushes to `main`**.
 - ❌ **NO committing `.env` files, passwords, or secret tokens**.
-- ❌ **NO editing other teammates' active branches**.
+- ❌ **NO editing other teammates' active branches to bypass ownership**.
 
 ---
 
-# SECTION 20 — First-Day Checklist for Atharva
+# SECTION 22 — First-Day Checklist
 
-- [ ] Clone the repository and checkout `feature/frontend`.
-- [ ] Inspect the placeholder structure in `frontend/app/`, `frontend/components/`, and `frontend/services/`.
-- [ ] Read [`docs/PROJECT_OVERVIEW.md`](file:///Users/shrutikondabathula/FoodSync-AI/docs/PROJECT_OVERVIEW.md) and [`docs/UI_GUIDELINES.md`](file:///Users/shrutikondabathula/FoodSync-AI/docs/UI_GUIDELINES.md).
-- [ ] Review [`docs/API_CONTRACT.md`](file:///Users/shrutikondabathula/FoodSync-AI/docs/API_CONTRACT.md) to understand API JSON request/response formats.
-- [ ] Configure `NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1` in your local `.env.local`.
+1. Clone repository and checkout `feature/frontend`.
+2. Pull latest changes from `main`.
+3. Read [`docs/PROJECT_OVERVIEW.md`](file:///Users/shrutikondabathula/FoodSync-AI/docs/PROJECT_OVERVIEW.md) and [`docs/ARCHITECTURE.md`](file:///Users/shrutikondabathula/FoodSync-AI/docs/ARCHITECTURE.md).
+4. Read [`docs/UI_GUIDELINES.md`](file:///Users/shrutikondabathula/FoodSync-AI/docs/UI_GUIDELINES.md) and [`docs/SECURITY_GUIDELINES.md`](file:///Users/shrutikondabathula/FoodSync-AI/docs/SECURITY_GUIDELINES.md).
+5. Review [`docs/API_CONTRACT.md`](file:///Users/shrutikondabathula/FoodSync-AI/docs/API_CONTRACT.md).
+6. Inspect planned/current frontend structure.
+7. Configure: `NEXT_PUBLIC_API_URL=http://localhost:8000` in `.env.local`.
+8. Do not modify backend, database, or test ownership areas without explicit coordination.
 
 ---
 
-# SECTION 21 — Common Beginner Frontend Mistakes to Avoid
+# SECTION 23 — Common Beginner Frontend Mistakes
 
 1. ❌ **Relying on client-side authorization**: Always assume any user can inspect JavaScript; the backend must enforce all permissions.
 2. ❌ **Direct database access**: Never attempt to connect directly to PostgreSQL from Next.js.
-3. ❌ **Using the prohibited word `CLAIMED`**: The donation lifecycle is strictly `AVAILABLE` $\rightarrow$ `RESERVED` $\rightarrow$ `COMPLETED`.
-4. ❌ **Hardcoding API URLs in components**: Always use `process.env.NEXT_PUBLIC_API_URL` via `apiClient.ts`.
+3. ❌ **Implementing the prohibited CLAIMED lifecycle**: Do not implement a CLAIMED donation state, `/claim` route, `ClaimActionModal`, or claim-based donation lifecycle. The donation lifecycle strictly uses `AVAILABLE` $\rightarrow$ `RESERVED` $\rightarrow$ `COMPLETED`, with the documented expiry and cancellation transitions.
+4. ❌ **Double-prefixing API URLs**: Configure `NEXT_PUBLIC_API_URL=http://localhost:8000` and pass `/api/v1/...` in service calls.
 5. ❌ **Missing Loading/Empty States**: Never render a blank white screen during API fetch; always use `LoadingSkeleton` and `EmptyState`.
 6. ❌ **Leaking private addresses in client state**: Never store or render unmasked pickup addresses before authorized acceptance.
+7. ❌ **Recomputing matching scores on the client**: Always render the authoritative score returned by the backend.
+8. ❌ **Modifying non-frontend directories**: Coordinate with Shubham, Lokeshwari, or Vishwajeet instead of editing backend/database/test files.
 
 ---
 
-# SECTION 22 — Quick Reference & Commands
+# SECTION 24 — Quick Reference & Commands
 
-### Useful Commands:
+### Planned Next.js Development Commands (When initialized):
 ```bash
 # Start local Next.js development server:
 npm run dev
@@ -518,26 +562,30 @@ npm run lint
 
 ---
 
-# SECTION 23 — Questions & Escalation Guide
+# SECTION 25 — Questions & Escalation Guide
 
 ```text
-Have a component styling, React hook, or Next.js layout question?
-      ↓
-You own it! Check docs/UI_GUIDELINES.md and build it.
-
-Have a UI/UX layout, wireframe, or accessibility review question?
+Have a UI/UX layout, wireframe, or accessibility question?
       ↓
 Contact VISHWAJEET (feature/ui-testing)
 
-Have an API endpoint, response payload, or auth token question?
+Have a frontend React / Next.js / Tailwind implementation question?
+      ↓
+You own it! Check docs/UI_GUIDELINES.md and build it.
+
+Have an API endpoint, request/response, or auth token question?
       ↓
 Contact SHUBHAM (feature/backend)
+
+Have a deterministic matching scoring formula or AI architecture question?
+      ↓
+Contact SHRUTI (feature/ai-matching)
+
+Have a database model, schema constraint, or migration question?
+      ↓
+Contact LOKESHWARI (feature/database)
 
 Have a test failure or component QA test question?
       ↓
 Contact VISHWAJEET (feature/ui-testing)
-
-Have a system architecture or matching algorithm question?
-      ↓
-Contact SHRUTI (Team Lead)
 ```
