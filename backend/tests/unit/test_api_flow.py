@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -79,13 +81,14 @@ def test_donation_match_and_reservation_flow():
     )
     assert profile_response.status_code == 200, profile_response.text
 
+    now = datetime.now(timezone.utc)
     donation_payload = {
         "title": "Rice packets",
         "food_type": "PACKAGED_GROCERY",
         "perishable": False,
         "quantity_meals": 40,
-        "prepared_at": "2026-10-12T08:00:00",
-        "expiry_time": "2026-10-12T18:00:00",
+        "prepared_at": (now - timedelta(hours=1)).isoformat(),
+        "expiry_time": (now + timedelta(hours=6)).isoformat(),
         "pickup_address": "123 Market Road",
         "latitude": 12.9716,
         "longitude": 77.5946,

@@ -4,50 +4,19 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.core.store import store
+from app.services.matching.engine import evaluate_candidate_match
 from app.utils.geo import haversine_km
 
 
-def _score_distance(distance_km: float, max_distance_km: float) -> float:
-    if max_distance_km <= 0:
-        return 0.0
-    return max(0.0, 1.0 - (distance_km / max_distance_km))
-
-
-def _score_urgency(donation: dict[str, Any]) -> float:
-    try:
-        expiry = donation["expiry_time"]
-        if isinstance(expiry, str):
-            expiry = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
-        now = datetime.now(timezone.utc)
-        hours_left = max(0.0, (expiry - now).total_seconds() / 3600)
-        if hours_left <= 0:
-            return 0.0
-        return min(1.0, hours_left / 12.0)
-    except Exception:
-        return 0.5
-
-
-def _score_capacity(recipient: dict[str, Any], donation: dict[str, Any]) -> float:
-    capacity = float(recipient.get("daily_capacity_meals", 0) or 0)
-    quantity = float(donation.get("quantity_meals", 0) or 0)
-    if capacity <= 0 or quantity <= 0:
-        return 0.0
-    return min(1.0, quantity / max(capacity, 1.0))
-
-
-def _score_requirement(recipient: dict[str, Any], donation: dict[str, Any]) -> float:
-    dietary_pref = recipient.get("dietary_preferences", "ALL")
-    donation_type = donation.get("food_type")
-
-    if dietary_pref == "ALL":
-        return 1.0
-    if dietary_pref == "VEGETARIAN_ONLY":
-        vegetarian_types = {"VEGETARIAN_COOKED", "PACKAGED_GROCERY", "PRODUCE_RAW", "BAKERY"}
-        return 1.0 if donation_type in vegetarian_types else 0.0
-    if dietary_pref == "VEGAN_ONLY":
-        vegan_types = {"PACKAGED_GROCERY", "PRODUCE_RAW", "BAKERY"}
-        return 1.0 if donation_type in vegan_types else 0.0
-    return 0.0
+def _as_utc_datetime(value: Any) -> datetime:
+    """Parse a datetime and normalize naive values to UTC."""
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if not isinstance(value, datetime):
+        raise ValueError("Invalid donation expiry_time")
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def generate_matches_for_donation(donation_id: str) -> list[dict[str, Any]]:
@@ -55,47 +24,79 @@ def generate_matches_for_donation(donation_id: str) -> list[dict[str, Any]]:
     if not donation:
         return []
 
+    try:
+        expiry_time = _as_utc_datetime(donation["expiry_time"])
+        current_time = datetime.now(timezone.utc)
+        donation_latitude = float(donation["latitude"])
+        donation_longitude = float(donation["longitude"])
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return []
+
     matches: list[dict[str, Any]] = []
+
     for recipient_user in store.users.values():
         if recipient_user.get("role") != "RECIPIENT":
             continue
 
-        profile = store.recipient_profiles.get(recipient_user["id"])
+        recipient_id = recipient_user.get("id")
+        if not recipient_id:
+            continue
+
+        profile = store.recipient_profiles.get(recipient_id)
         if not profile:
             continue
 
-        location = (donation["latitude"], donation["longitude"])
-        recipient_location = (recipient_user["latitude"], recipient_user["longitude"])
-        distance = haversine_km(location[0], location[1], recipient_location[0], recipient_location[1])
-        max_allowed_distance = min(15.0, float(profile.get("max_travel_distance_km", 15.0)))
+        try:
+            recipient_latitude = float(recipient_user["latitude"])
+            recipient_longitude = float(recipient_user["longitude"])
+            max_distance = float(profile.get("max_travel_distance_km", 15.0))
+            distance = haversine_km(
+                donation_latitude,
+                donation_longitude,
+                recipient_latitude,
+                recipient_longitude,
+            )
 
-        if distance > max_allowed_distance:
+            result = evaluate_candidate_match(
+                distance_km=distance,
+                recipient_max_travel_distance_km=max_distance,
+                quantity_meals=float(donation.get("quantity_meals", 0) or 0),
+                daily_capacity_meals=float(
+                    profile.get("daily_capacity_meals", 0) or 0
+                ),
+                expiry_time=expiry_time,
+                current_time=current_time,
+                food_type=str(donation.get("food_type", "")),
+                dietary_preference=str(
+                    profile.get("dietary_preferences", "ALL")
+                ),
+                perishable=bool(donation.get("perishable", True)),
+                storage_types=list(profile.get("storage_types") or []),
+            )
+        except (KeyError, TypeError, ValueError, OverflowError):
+            # Invalid candidate data must not break matching for other recipients.
             continue
 
-        requirement = _score_requirement(profile, donation)
-        if requirement <= 0:
+        if not result.is_qualified:
             continue
 
-        dist_score = _score_distance(distance, max_allowed_distance)
-        urgency_score = _score_urgency(donation)
-        capacity_score = _score_capacity(profile, donation)
-
-        total_score = round(
-            0.35 * dist_score + 0.30 * urgency_score + 0.20 * capacity_score + 0.15 * requirement,
-            4,
-        )
-
+        factors = result.matched_factors
         match_record = {
             "id": f"match_{len(store.matches) + 1}_{donation_id}",
             "donation_id": donation_id,
-            "recipient_id": recipient_user["id"],
-            "compatibility_score": total_score,
+            "recipient_id": recipient_id,
+            "compatibility_score": round(result.total_score, 4),
             "distance_km": round(distance, 2),
+            # Preserve the existing API/storage keys.
             "matched_factors": {
-                "distance_score": round(dist_score, 4),
-                "urgency_score": round(urgency_score, 4),
-                "capacity_score": round(capacity_score, 4),
-                "requirement_score": round(requirement, 4),
+                "distance_score": round(factors["distance_score"] or 0.0, 4),
+                "urgency_score": round(factors["urgency_score"] or 0.0, 4),
+                "capacity_score": round(
+                    factors["capacity_fit_score"] or 0.0, 4
+                ),
+                "requirement_score": round(
+                    factors["dietary_preference_score"] or 0.0, 4
+                ),
             },
             "status": "PROPOSED",
             "created_at": datetime.now(timezone.utc),
@@ -105,11 +106,14 @@ def generate_matches_for_donation(donation_id: str) -> list[dict[str, Any]]:
         matches.append(match_record)
 
         notification = {
-            "id": f"notif_{len(store.notifications) + 1}_{recipient_user['id']}",
-            "user_id": recipient_user["id"],
+            "id": f"notif_{len(store.notifications) + 1}_{recipient_id}",
+            "user_id": recipient_id,
             "match_id": match_record["id"],
             "title": "New donation match available",
-            "message": f"A food donation near you matches your organization profile: {donation['title']}",
+            "message": (
+                "A food donation near you matches your organization profile: "
+                f"{donation.get('title', 'New donation')}"
+            ),
             "type": "MATCH_ALERT",
             "is_read": False,
             "created_at": datetime.now(timezone.utc),
@@ -118,4 +122,8 @@ def generate_matches_for_donation(donation_id: str) -> list[dict[str, Any]]:
 
     store.sync_matches()
     store.sync_notifications()
-    return sorted(matches, key=lambda item: item["compatibility_score"], reverse=True)
+    return sorted(
+        matches,
+        key=lambda item: item["compatibility_score"],
+        reverse=True,
+    )
