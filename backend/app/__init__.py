@@ -1,0 +1,1 @@
+"""FoodSync AI application package."""

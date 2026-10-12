@@ -14,6 +14,7 @@ import {
   INITIAL_DEMO_NOTIFICATIONS,
   INITIAL_DEMO_IMPACT,
 } from './demo-data';
+import { apiGetMe, apiLogin, apiRegister } from './api';
 
 interface DemoContextType {
   user: DemoUser | null;
@@ -24,8 +25,8 @@ interface DemoContextType {
   impactMetrics: DemoImpactMetrics;
   unreadCount: number;
   loginAs: (role: 'FOOD_PROVIDER' | 'RECIPIENT') => void;
-  login: (email: string, role?: 'FOOD_PROVIDER' | 'RECIPIENT') => void;
-  register: (fullName: string, email: string, role: 'FOOD_PROVIDER' | 'RECIPIENT') => void;
+  login: (email: string, password: string, role?: 'FOOD_PROVIDER' | 'RECIPIENT') => Promise<void>;
+  register: (fullName: string, email: string, password: string, role: 'FOOD_PROVIDER' | 'RECIPIENT') => Promise<void>;
   logout: () => void;
   switchRole: () => void;
   createDonation: (data: {
@@ -49,6 +50,7 @@ const DemoContext = createContext<DemoContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
   USER: 'foodsync_demo_user',
+  TOKEN: 'foodsync_backend_token',
   DONATIONS: 'foodsync_demo_donations',
   MATCHES: 'foodsync_demo_matches',
   NOTIFICATIONS: 'foodsync_demo_notifications',
@@ -72,12 +74,22 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       const savedMatches = localStorage.getItem(STORAGE_KEYS.MATCHES);
       const savedNotifs = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
       const savedImpact = localStorage.getItem(STORAGE_KEYS.IMPACT);
+      const savedToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
 
       if (savedUser) setUser(JSON.parse(savedUser));
       if (savedDonations) setDonations(JSON.parse(savedDonations));
       if (savedMatches) setMatches(JSON.parse(savedMatches));
       if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
       if (savedImpact) setImpactMetrics(JSON.parse(savedImpact));
+
+      if (savedToken) {
+        apiGetMe(savedToken)
+          .then((backendUser) => setUser(mapBackendUser(backendUser)))
+          .catch(() => {
+            saveToken(null);
+            saveUser(null);
+          });
+      }
     } catch {
       // Fall back to memory defaults
     } finally {
@@ -93,6 +105,34 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     } else {
       localStorage.removeItem(STORAGE_KEYS.USER);
     }
+  };
+
+  const saveToken = (token: string | null) => {
+    if (token) {
+      localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.TOKEN);
+    }
+  };
+
+  const mapBackendUser = (backendUser: any): DemoUser => {
+    const role = backendUser.role === 'RECIPIENT' ? 'RECIPIENT' : 'FOOD_PROVIDER';
+    const initials = (backendUser.organization_name || backendUser.email || 'FS')
+      .split(' ')
+      .map((part: string) => part[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+
+    return {
+      id: backendUser.id,
+      name: backendUser.organization_name || backendUser.email,
+      email: backendUser.email,
+      role,
+      organization: backendUser.organization_name || 'FoodSync Organization',
+      location: 'Backend-connected location',
+      avatarInitials: initials || 'FS',
+    };
   };
 
   const saveDonations = (newDonations: DemoDonation[]) => {
@@ -118,54 +158,86 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   // Actions
   const loginAs = (role: 'FOOD_PROVIDER' | 'RECIPIENT') => {
     const demoProfile = role === 'FOOD_PROVIDER' ? INITIAL_DEMO_USERS.provider : INITIAL_DEMO_USERS.recipient;
+    saveToken(null);
     saveUser(demoProfile);
     router.push('/dashboard');
   };
 
-  const login = (email: string, rolePreference?: 'FOOD_PROVIDER' | 'RECIPIENT') => {
-    const isRecipient =
-      rolePreference === 'RECIPIENT' ||
-      email.toLowerCase().includes('recipient') ||
-      email.toLowerCase().includes('shelter') ||
-      email.toLowerCase().includes('ngo');
+  const login = async (email: string, password: string, rolePreference?: 'FOOD_PROVIDER' | 'RECIPIENT') => {
+    try {
+      const response = await apiLogin(email, password);
+      const newUser = mapBackendUser(response.user);
+      saveToken(response.token);
+      saveUser(newUser);
+      router.push('/dashboard');
+      return;
+    } catch {
+      // Fallback to demo login if backend is unavailable during development.
+      const isRecipient =
+        rolePreference === 'RECIPIENT' ||
+        email.toLowerCase().includes('recipient') ||
+        email.toLowerCase().includes('shelter') ||
+        email.toLowerCase().includes('ngo');
 
-    const newUser: DemoUser = {
-      id: isRecipient ? 'usr-recip-001' : 'usr-prov-001',
-      name: isRecipient ? 'Brother Thomas (Director)' : 'Maya Sharma (Head Chef)',
-      email: email.trim() || (isRecipient ? 'recipient@demo.com' : 'provider@demo.com'),
-      role: isRecipient ? 'RECIPIENT' : 'FOOD_PROVIDER',
-      organization: isRecipient ? 'Hope Shelter & Community Pantry' : 'Green Valley Kitchen & Catering',
-      location: isRecipient ? 'Solapur East (2.1 km away)' : 'Solapur Central',
-      avatarInitials: isRecipient ? 'HS' : 'GV',
-    };
+      const demoUser: DemoUser = {
+        id: isRecipient ? 'usr-recip-001' : 'usr-prov-001',
+        name: isRecipient ? 'Brother Thomas (Director)' : 'Maya Sharma (Head Chef)',
+        email: email.trim() || (isRecipient ? 'recipient@demo.com' : 'provider@demo.com'),
+        role: isRecipient ? 'RECIPIENT' : 'FOOD_PROVIDER',
+        organization: isRecipient ? 'Hope Shelter & Community Pantry' : 'Green Valley Kitchen & Catering',
+        location: isRecipient ? 'Solapur East (2.1 km away)' : 'Solapur Central',
+        avatarInitials: isRecipient ? 'HS' : 'GV',
+      };
 
-    saveUser(newUser);
-    router.push('/dashboard');
+      saveToken(null);
+      saveUser(demoUser);
+      router.push('/dashboard');
+    }
   };
 
-  const register = (fullName: string, email: string, role: 'FOOD_PROVIDER' | 'RECIPIENT') => {
-    const initials = fullName
-      .split(' ')
-      .map((part) => part[0])
-      .join('')
-      .substring(0, 2)
-      .toUpperCase() || (role === 'FOOD_PROVIDER' ? 'FP' : 'RO');
+  const register = async (fullName: string, email: string, password: string, role: 'FOOD_PROVIDER' | 'RECIPIENT') => {
+    try {
+      const response = await apiRegister({
+        email,
+        password,
+        role,
+        organization_name: fullName,
+        phone: '+91 9000000000',
+        address: 'Solapur, Maharashtra',
+        latitude: 17.6599,
+        longitude: 75.9064,
+      });
+      const newUser = mapBackendUser(response.user);
+      saveToken(response.token);
+      saveUser(newUser);
+      router.push('/dashboard');
+      return;
+    } catch {
+      const initials = fullName
+        .split(' ')
+        .map((part) => part[0])
+        .join('')
+        .substring(0, 2)
+        .toUpperCase() || (role === 'FOOD_PROVIDER' ? 'FP' : 'RO');
 
-    const newUser: DemoUser = {
-      id: `usr-${Date.now().toString().slice(-4)}`,
-      name: fullName,
-      email,
-      role,
-      organization: role === 'FOOD_PROVIDER' ? `${fullName}'s Kitchen` : `${fullName} Relief Center`,
-      location: 'Solapur Urban District',
-      avatarInitials: initials,
-    };
+      const demoUser: DemoUser = {
+        id: `usr-${Date.now().toString().slice(-4)}`,
+        name: fullName,
+        email,
+        role,
+        organization: role === 'FOOD_PROVIDER' ? `${fullName}'s Kitchen` : `${fullName} Relief Center`,
+        location: 'Solapur Urban District',
+        avatarInitials: initials,
+      };
 
-    saveUser(newUser);
-    router.push('/dashboard');
+      saveToken(null);
+      saveUser(demoUser);
+      router.push('/dashboard');
+    }
   };
 
   const logout = () => {
+    saveToken(null);
     saveUser(null);
     router.push('/login');
   };

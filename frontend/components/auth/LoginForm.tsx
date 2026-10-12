@@ -47,9 +47,11 @@ export default function LoginForm() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      login(formData.email);
-    }, 400);
+    try {
+      await login(formData.email, formData.password);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleQuickDemo = (role: 'FOOD_PROVIDER' | 'RECIPIENT') => {
