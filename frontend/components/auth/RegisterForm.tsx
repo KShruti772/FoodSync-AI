@@ -68,9 +68,11 @@ export default function RegisterForm() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      register(formData.fullName, formData.email, formData.role);
-    }, 500);
+    try {
+      await register(formData.fullName, formData.email, formData.password, formData.role);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
