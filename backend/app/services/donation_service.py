@@ -45,6 +45,11 @@ class DonationService:
                 prep_at = _parse_utc_datetime(payload["prepared_at"])
                 exp_time = _parse_utc_datetime(payload["expiry_time"])
 
+                if exp_time <= prep_at:
+                    raise ValueError("Expiry time must be after preparation time")
+                if exp_time <= now:
+                    raise ValueError("Expiry time must be in the future")
+
                 donation_row = DonationORM(
                     id=donation_id,
                     provider_id=provider_id,
@@ -78,13 +83,16 @@ class DonationService:
 
     @staticmethod
     def list_donations(user: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        now = datetime.now(timezone.utc)
         with SessionLocal() as db:
             query = db.query(DonationORM)
             if user is not None:
                 if user.get("role") == "FOOD_PROVIDER":
                     query = query.filter(DonationORM.provider_id == user["id"])
                 elif user.get("role") != "ADMIN":
-                    query = query.filter(DonationORM.status == "AVAILABLE")
+                    query = query.filter(DonationORM.status == "AVAILABLE", DonationORM.expiry_time > now)
+            else:
+                query = query.filter(DonationORM.status == "AVAILABLE", DonationORM.expiry_time > now)
 
             rows = query.order_by(DonationORM.created_at.desc()).all()
             if rows:
@@ -100,7 +108,17 @@ class DonationService:
                 if user.get("role") == "FOOD_PROVIDER":
                     donations_list = [d for d in donations_list if d.get("provider_id") == user["id"]]
                 elif user.get("role") != "ADMIN":
-                    donations_list = [d for d in donations_list if d.get("status") == "AVAILABLE"]
+                    donations_list = [
+                        d for d in donations_list
+                        if d.get("status") == "AVAILABLE"
+                        and _parse_utc_datetime(d["expiry_time"]) > now
+                    ]
+            else:
+                donations_list = [
+                    d for d in donations_list
+                    if d.get("status") == "AVAILABLE"
+                    and _parse_utc_datetime(d["expiry_time"]) > now
+                ]
 
             def _get_sort_key(item: dict[str, Any]):
                 val = item.get("created_at")
@@ -275,6 +293,14 @@ class DonationService:
                         return DonationService._complete_donation_in_memory(donation_id, user, confirmed_quantity_meals, notes)
                     raise ValueError("Donation not found")
 
+                now = datetime.now(timezone.utc)
+                exp_time = donation_row.expiry_time if donation_row.expiry_time.tzinfo else donation_row.expiry_time.replace(tzinfo=timezone.utc)
+                if donation_row.status == "EXPIRED" or exp_time <= now:
+                    if donation_row.status in ("AVAILABLE", "RESERVED"):
+                        from app.services.expiry_service import ExpiryService
+                        ExpiryService._expire_donation_tx(donation_id=donation_id, db=db, now=now, commit=True)
+                    raise ValueError("Donation has expired and cannot be completed")
+
                 if donation_row.status != "RESERVED":
                     raise ValueError("Donation must be reserved before completion")
 
@@ -404,6 +430,17 @@ class DonationService:
         notes: str | None = None,
     ) -> dict[str, Any]:
         donation = store.donations[donation_id]
+        now = datetime.now(timezone.utc)
+        exp_time = _parse_utc_datetime(donation["expiry_time"])
+        if donation.get("status") == "EXPIRED" or exp_time <= now:
+            donation["status"] = "EXPIRED"
+            donation["updated_at"] = now
+            for item in store.matches.values():
+                if item.get("donation_id") == donation_id:
+                    item["status"] = "EXPIRED"
+                    item["updated_at"] = now
+            raise ValueError("Donation has expired and cannot be completed")
+
         if donation["status"] != "RESERVED":
             raise ValueError("Donation must be reserved before completion")
         match = next(

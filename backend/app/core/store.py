@@ -42,14 +42,16 @@ class InMemoryStore:
 
     def sync_recipient_profiles(self) -> None:
         with SessionLocal() as db:
-            for user_id, profile in self.recipient_profiles.items():
+            for user_id, profile in list(self.recipient_profiles.items()):
                 row = db.query(RecipientProfileORM).filter_by(user_id=user_id).first()
-                payload = self._recipient_profile_to_row(profile)
                 if row is None:
+                    if db.get(UserORM, user_id) is None:
+                        self.recipient_profiles.pop(user_id, None)
+                        continue
+                    payload = self._recipient_profile_to_row(profile)
                     db.add(RecipientProfileORM(**payload))
                 else:
-                    for key, value in payload.items():
-                        setattr(row, key, value)
+                    self.recipient_profiles[user_id] = self._recipient_profile_from_row(row)
             db.commit()
 
     def sync_matches(self) -> None:
@@ -92,7 +94,7 @@ class InMemoryStore:
                         else:
                             row_status = getattr(row, "status", None)
                             mem_status = item.get("status")
-                            if row_status in ("RESERVED", "COMPLETED", "CANCELLED") and mem_status == "AVAILABLE":
+                            if row_status in ("RESERVED", "COMPLETED", "CANCELLED", "EXPIRED") and mem_status == "AVAILABLE":
                                 continue
                             row_updated = getattr(row, "updated_at", None)
                             mem_updated = item.get("updated_at")
@@ -126,10 +128,10 @@ class InMemoryStore:
                             records[item_id] = from_row_fn(row)
                         continue
 
-                    # 1. State lifecycle progression protection: RESERVED/COMPLETED/CANCELLED cannot be reverted to AVAILABLE
+                    # 1. State lifecycle progression protection: RESERVED/COMPLETED/CANCELLED/EXPIRED cannot be reverted to AVAILABLE
                     row_status = getattr(row, "status", None)
                     mem_status = item.get("status")
-                    if row_status in ("RESERVED", "COMPLETED", "CANCELLED") and mem_status == "AVAILABLE":
+                    if row_status in ("RESERVED", "COMPLETED", "CANCELLED", "EXPIRED") and mem_status == "AVAILABLE":
                         if from_row_fn:
                             records[item_id] = from_row_fn(row)
                         continue

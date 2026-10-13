@@ -61,10 +61,12 @@ def init_db() -> None:
     """Initialize database tables for development/testing or verify connection.
 
     In production PostgreSQL environments, Alembic is the authoritative schema migration tool.
-    For local development and test suites, Base.metadata.create_all ensures tables are present.
+    For local development and test suites using SQLite, Base.metadata.create_all ensures tables are present.
+    PostgreSQL startup verifies connectivity and strictly defers all schema management to Alembic.
     """
     check_db_connection()
-    Base.metadata.create_all(bind=engine)
+    if is_sqlite:
+        Base.metadata.create_all(bind=engine)
 
 
 def get_db() -> Generator[Session, None, None]:

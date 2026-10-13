@@ -24,9 +24,9 @@ def reset_store():
     store.notifications.clear()
     store.impact_logs.clear()
     with SessionLocal() as db:
-        db.query(MatchORM).delete()
-        db.query(NotificationORM).delete()
         db.query(ImpactLogORM).delete()
+        db.query(NotificationORM).delete()
+        db.query(MatchORM).delete()
         db.query(DonationORM).delete()
         db.query(RecipientProfileORM).delete()
         db.query(UserORM).delete()
@@ -40,9 +40,9 @@ def reset_store():
     store.notifications.clear()
     store.impact_logs.clear()
     with SessionLocal() as db:
-        db.query(MatchORM).delete()
-        db.query(NotificationORM).delete()
         db.query(ImpactLogORM).delete()
+        db.query(NotificationORM).delete()
+        db.query(MatchORM).delete()
         db.query(DonationORM).delete()
         db.query(RecipientProfileORM).delete()
         db.query(UserORM).delete()

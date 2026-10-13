@@ -7,6 +7,10 @@ from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 import pytest
 
+from unittest.mock import patch
+import sqlalchemy as sa
+from sqlalchemy.orm import Query
+
 from app.core.database import SessionLocal, engine
 from app.core.store import store
 from app.main import app
@@ -730,24 +734,32 @@ def test_19_rejection_when_donation_is_reserved_completed_or_missing():
         assert notif is None
 
     # 3. Test when donation is MISSING: rolls back, does not commit partial update
+    don_id_3 = _create_donation(donor_token, title="Missing Donation Realloc Test", food_type="BAKERY", perishable=False, quantity=30)
     with SessionLocal() as db:
-        orphan_match = MatchORM(
-            id=f"match_{uuid.uuid4().hex[:8]}_orphan",
-            donation_id="don_missing_never_existed",
-            recipient_id=recip_1_id,
-            status="NOTIFIED",
-        )
-        db.add(orphan_match)
+        m3 = db.query(MatchORM).filter(MatchORM.donation_id == don_id_3, MatchORM.recipient_id == recip_1_id).first()
+        assert m3 is not None
+        m3.status = "NOTIFIED"
         db.commit()
-        orphan_id = orphan_match.id
+        orphan_id = m3.id
 
-    # Ensure store does not have it either
-    store.donations.pop("don_missing_never_existed", None)
+    orig_wfu = Query.with_for_update
+    def mock_wfu(self, *args, **kwargs):
+        q = orig_wfu(self, *args, **kwargs)
+        try:
+            if self._entity_from_pre_ent_zero().entity is DonationORM:
+                return q.filter(sa.text("1=0"))
+        except Exception:
+            pass
+        return q
 
-    rej_res3 = client.post(f"/api/v1/matches/{orphan_id}/reject", headers={"Authorization": f"Bearer {recip_1_token}"})
-    assert rej_res3.status_code == 400
-    assert rej_res3.json()["detail"]["error"]["code"] == "INVALID_STATE"
-    assert "donation not found" in rej_res3.json()["detail"]["error"]["message"].lower()
+    # Ensure store does not have it either so fallback resurrection does not trigger
+    store.donations.pop(don_id_3, None)
+
+    with patch.object(Query, "with_for_update", mock_wfu):
+        rej_res3 = client.post(f"/api/v1/matches/{orphan_id}/reject", headers={"Authorization": f"Bearer {recip_1_token}"})
+        assert rej_res3.status_code == 400
+        assert rej_res3.json()["detail"]["error"]["code"] == "INVALID_STATE"
+        assert "donation not found" in rej_res3.json()["detail"]["error"]["message"].lower()
 
     # Verify rollback: orphan match must remain NOTIFIED in database
     with SessionLocal() as db:

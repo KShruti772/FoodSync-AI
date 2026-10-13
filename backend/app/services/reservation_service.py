@@ -58,6 +58,14 @@ class ReservationService:
                 if donation_row is None:
                     raise ValueError("Donation not found")
 
+                now = datetime.now(timezone.utc)
+                exp_time = donation_row.expiry_time if donation_row.expiry_time.tzinfo else donation_row.expiry_time.replace(tzinfo=timezone.utc)
+                if donation_row.status == "EXPIRED" or exp_time <= now:
+                    if donation_row.status in ("AVAILABLE", "RESERVED"):
+                        from app.services.expiry_service import ExpiryService
+                        ExpiryService._expire_donation_tx(donation_id=donation_id, db=db, now=now, commit=True)
+                    raise ValueError("Match or donation has expired")
+
                 if donation_row.status != "AVAILABLE":
                     raise ValueError("Donation is no longer available")
 
@@ -200,7 +208,8 @@ class ReservationService:
                 next_match = None
                 new_notif = None
 
-                if donation_row is not None and donation_row.status == "AVAILABLE":
+                don_exp = donation_row.expiry_time if donation_row.expiry_time.tzinfo else donation_row.expiry_time.replace(tzinfo=timezone.utc)
+                if donation_row is not None and donation_row.status == "AVAILABLE" and don_exp > now:
                     competing_query = db.query(MatchORM).filter(
                         MatchORM.donation_id == donation_id,
                         MatchORM.status == "PROPOSED",

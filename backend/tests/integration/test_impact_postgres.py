@@ -15,7 +15,7 @@ from app.core.database import SessionLocal, engine
 from app.core.security import create_access_token, hash_password
 from app.core.store import store
 from app.main import app
-from app.models import DonationORM, ImpactLogORM, MatchORM, NotificationORM, UserORM
+from app.models import DonationORM, ImpactLogORM, MatchORM, NotificationORM, RecipientProfileORM, UserORM
 from app.services.impact_service import ImpactService
 
 client = TestClient(app)
@@ -281,39 +281,51 @@ def test_03_concurrent_completion_requests_cannot_double_count_handover():
 
 def test_04_database_unique_constraint_enforces_impact_idempotency():
     """Verify database-level unique constraint uq_impact_logs_donation_id rejects duplicates directly."""
-    unique_don_id = f"don_direct_constraint_{uuid.uuid4().hex[:8]}"
-    match_id = f"match_{uuid.uuid4().hex[:8]}"
+    donor_id, donor_token = _register_provider(_unique_email("donor_imp04"))
+    recip_id, recip_token = _register_recipient(_unique_email("recip_imp04"), storage_types=["HEATED", "REFRIGERATED"])
+    donation_id, match_id = _create_and_reserve_donation(donor_token, recip_id, recip_token, meals=100)
 
-    with SessionLocal() as db:
-        first_log = ImpactLogORM(
-            id=f"imp_{uuid.uuid4().hex[:8]}",
-            donation_id=unique_don_id,
-            match_id=match_id,
-            meals_rescued=100,
-            food_weight_kg=50.0,
-            co2_savings_kg=125.0,
-            created_at=datetime.now(timezone.utc),
-        )
-        db.add(first_log)
-        db.commit()
-
-    # Attempt inserting a second record with the exact same donation_id
-    with SessionLocal() as db:
-        second_log = ImpactLogORM(
-            id=f"imp_{uuid.uuid4().hex[:8]}",
-            donation_id=unique_don_id,
-            match_id=match_id,
-            meals_rescued=100,
-            food_weight_kg=50.0,
-            co2_savings_kg=125.0,
-            created_at=datetime.now(timezone.utc),
-        )
-        db.add(second_log)
-        with pytest.raises(IntegrityError) as exc_info:
+    try:
+        with SessionLocal() as db:
+            first_log = ImpactLogORM(
+                id=f"imp_{uuid.uuid4().hex[:8]}",
+                donation_id=donation_id,
+                match_id=match_id,
+                meals_rescued=100,
+                food_weight_kg=50.0,
+                co2_savings_kg=125.0,
+                created_at=datetime.now(timezone.utc),
+            )
+            db.add(first_log)
             db.commit()
 
-        assert "uq_impact_logs_donation_id" in str(exc_info.value).lower() or "unique constraint" in str(exc_info.value).lower()
-        db.rollback()
+        # Attempt inserting a second record with the exact same donation_id
+        with SessionLocal() as db:
+            second_log = ImpactLogORM(
+                id=f"imp_{uuid.uuid4().hex[:8]}",
+                donation_id=donation_id,
+                match_id=match_id,
+                meals_rescued=100,
+                food_weight_kg=50.0,
+                co2_savings_kg=125.0,
+                created_at=datetime.now(timezone.utc),
+            )
+            db.add(second_log)
+            with pytest.raises(IntegrityError) as exc_info:
+                db.commit()
+
+            assert "uq_impact_logs_donation_id" in str(exc_info.value).lower() or "unique constraint" in str(exc_info.value).lower()
+            db.rollback()
+    finally:
+        # Clean up impact logs first (ON DELETE RESTRICT), then dependent and parent records
+        with SessionLocal() as db:
+            db.query(ImpactLogORM).filter(ImpactLogORM.donation_id == donation_id).delete()
+            db.query(NotificationORM).filter(NotificationORM.user_id.in_([donor_id, recip_id])).delete()
+            db.query(MatchORM).filter(MatchORM.donation_id == donation_id).delete()
+            db.query(DonationORM).filter(DonationORM.id == donation_id).delete()
+            db.query(RecipientProfileORM).filter(RecipientProfileORM.user_id == recip_id).delete()
+            db.query(UserORM).filter(UserORM.id.in_([donor_id, recip_id])).delete()
+            db.commit()
 
 
 def test_05_failed_completion_rolls_back_atomically_without_partial_records():

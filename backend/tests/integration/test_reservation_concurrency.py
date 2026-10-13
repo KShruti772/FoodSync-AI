@@ -67,6 +67,7 @@ def _seed_donation_and_matches(
             updated_at=now,
         )
         db.add(provider)
+        db.flush()
 
         # Seed Donation
         donation = DonationORM(
@@ -86,6 +87,7 @@ def _seed_donation_and_matches(
             updated_at=now,
         )
         db.add(donation)
+        db.flush()
 
         recipients_and_matches: list[tuple[str, str]] = []
         for i in range(1, num_recipients + 1):
@@ -101,7 +103,10 @@ def _seed_donation_and_matches(
                 updated_at=now,
             )
             db.add(r_user)
+        db.flush()
 
+        for i in range(1, num_recipients + 1):
+            r_id = f"user_recip_{i:02d}"
             m_id = f"match_conc_{i:02d}"
             match = MatchORM(
                 id=m_id,

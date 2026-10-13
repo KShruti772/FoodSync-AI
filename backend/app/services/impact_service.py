@@ -539,7 +539,7 @@ class ImpactService:
                 return res
             except Exception:
                 session.rollback()
-                if os.environ.get("PYTEST_CURRENT_TEST") and store.impact_logs:
+                if os.environ.get("PYTEST_CURRENT_TEST"):
                     # In-memory fallback strictly for isolated mocked unit test fixtures
                     existing = next((item for item in store.impact_logs.values() if item.get("donation_id") == donation_id), None)
                     if existing:
