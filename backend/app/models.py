@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -64,6 +64,9 @@ class RecipientProfileORM(Base):
 
 class MatchORM(Base):
     __tablename__ = "matches"
+    __table_args__ = (
+        UniqueConstraint("donation_id", "recipient_id", name="uq_matches_donation_recipient"),
+    )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     donation_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
@@ -91,6 +94,9 @@ class NotificationORM(Base):
 
 class ImpactLogORM(Base):
     __tablename__ = "impact_logs"
+    __table_args__ = (
+        UniqueConstraint("donation_id", name="uq_impact_logs_donation_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     donation_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)

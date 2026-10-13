@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from app.core.database import SessionLocal
@@ -31,10 +32,13 @@ class InMemoryStore:
             self.impact_logs = {row.id: self._impact_log_from_row(row) for row in db.query(ImpactLogORM).all()}
 
     def sync_users(self) -> None:
-        self._sync_table(UserORM, self.users, self._user_to_row)
+        self._sync_table(UserORM, self.users, self._user_to_row, self._user_from_row)
 
     def sync_donations(self) -> None:
-        self._sync_table(DonationORM, self.donations, self._donation_to_row)
+        self._sync_table(DonationORM, self.donations, self._donation_to_row, self._donation_from_row)
+        with SessionLocal() as db:
+            for row in db.query(DonationORM).all():
+                self.donations[row.id] = self._donation_from_row(row)
 
     def sync_recipient_profiles(self) -> None:
         with SessionLocal() as db:
@@ -49,13 +53,22 @@ class InMemoryStore:
             db.commit()
 
     def sync_matches(self) -> None:
-        self._sync_table(MatchORM, self.matches, self._match_to_row)
+        self._sync_table(MatchORM, self.matches, self._match_to_row, self._match_from_row)
+        with SessionLocal() as db:
+            for row in db.query(MatchORM).all():
+                self.matches[row.id] = self._match_from_row(row)
 
     def sync_notifications(self) -> None:
-        self._sync_table(NotificationORM, self.notifications, self._notification_to_row)
+        self._sync_table(NotificationORM, self.notifications, self._notification_to_row, self._notification_from_row)
+        with SessionLocal() as db:
+            for row in db.query(NotificationORM).all():
+                self.notifications[row.id] = self._notification_from_row(row)
 
     def sync_impact_logs(self) -> None:
-        self._sync_table(ImpactLogORM, self.impact_logs, self._impact_log_to_row)
+        self._sync_table(ImpactLogORM, self.impact_logs, self._impact_log_to_row, self._impact_log_from_row)
+        with SessionLocal() as db:
+            for row in db.query(ImpactLogORM).all():
+                self.impact_logs[row.id] = self._impact_log_from_row(row)
 
     def sync_all(self) -> None:
         self.sync_users()
@@ -65,14 +78,73 @@ class InMemoryStore:
         self.sync_notifications()
         self.sync_impact_logs()
 
-    def _sync_table(self, model, records: Dict[str, Dict[str, Any]], convert_fn) -> None:
+    def sync_transaction(self, *sync_specs: tuple[type, Dict[str, Dict[str, Any]], Any]) -> None:
+        """Atomically persist multiple entity collections within a single database transaction."""
         with SessionLocal() as db:
-            for item_id, item in records.items():
+            with db.begin():
+                for model, records, convert_fn in sync_specs:
+                    for item_id, item in records.items():
+                        row = db.get(model, item_id)
+                        payload = convert_fn(item)
+                        if row is None:
+                            row = model(**payload)
+                            db.add(row)
+                        else:
+                            row_status = getattr(row, "status", None)
+                            mem_status = item.get("status")
+                            if row_status in ("RESERVED", "COMPLETED", "CANCELLED") and mem_status == "AVAILABLE":
+                                continue
+                            row_updated = getattr(row, "updated_at", None)
+                            mem_updated = item.get("updated_at")
+                            if row_updated and mem_updated and isinstance(mem_updated, datetime):
+                                r_u = row_updated if row_updated.tzinfo else row_updated.replace(tzinfo=timezone.utc)
+                                m_u = mem_updated if mem_updated.tzinfo else mem_updated.replace(tzinfo=timezone.utc)
+                                if r_u > m_u:
+                                    continue
+                            for key, value in payload.items():
+                                setattr(row, key, value)
+
+    def _sync_table(self, model, records: Dict[str, Dict[str, Any]], convert_fn, from_row_fn=None) -> None:
+        with SessionLocal() as db:
+            for item_id, item in list(records.items()):
                 row = db.get(model, item_id)
                 if row is None:
+                    # Protection against resurrected records:
+                    # For migrated models where PostgreSQL is authoritative,
+                    # records deleted or non-existent in the database must never be inserted from memory.
+                    if model in (UserORM, RecipientProfileORM, DonationORM, MatchORM, NotificationORM, ImpactLogORM):
+                        records.pop(item_id, None)
+                        continue
                     row = model(**convert_fn(item))
                     db.add(row)
                 else:
+                    # Protection against stale in-memory overwrite of database-authoritative state:
+                    # For migrated models (UserORM, RecipientProfileORM, DonationORM, MatchORM, NotificationORM, ImpactLogORM), PostgreSQL is the source of truth.
+                    # Never overwrite an existing database row from memory; heal the memory cache from DB instead.
+                    if model in (UserORM, RecipientProfileORM, DonationORM, MatchORM, NotificationORM, ImpactLogORM):
+                        if from_row_fn:
+                            records[item_id] = from_row_fn(row)
+                        continue
+
+                    # 1. State lifecycle progression protection: RESERVED/COMPLETED/CANCELLED cannot be reverted to AVAILABLE
+                    row_status = getattr(row, "status", None)
+                    mem_status = item.get("status")
+                    if row_status in ("RESERVED", "COMPLETED", "CANCELLED") and mem_status == "AVAILABLE":
+                        if from_row_fn:
+                            records[item_id] = from_row_fn(row)
+                        continue
+
+                    # 2. Timestamp freshness protection: DB row with newer timestamp takes precedence
+                    row_updated = getattr(row, "updated_at", None)
+                    mem_updated = item.get("updated_at")
+                    if row_updated and mem_updated and isinstance(mem_updated, datetime):
+                        r_u = row_updated if row_updated.tzinfo else row_updated.replace(tzinfo=timezone.utc)
+                        m_u = mem_updated if mem_updated.tzinfo else mem_updated.replace(tzinfo=timezone.utc)
+                        if r_u >= m_u:
+                            if from_row_fn:
+                                records[item_id] = from_row_fn(row)
+                            continue
+
                     for key, value in convert_fn(item).items():
                         setattr(row, key, value)
             db.commit()
@@ -149,18 +221,26 @@ class InMemoryStore:
 
     @staticmethod
     def _recipient_profile_from_row(row: RecipientProfileORM) -> Dict[str, Any]:
+        try:
+            storage = json.loads(row.storage_types)
+        except Exception:
+            try:
+                storage = json.loads(row.storage_types.replace("'", '"'))
+            except Exception:
+                storage = ["DRY"]
         return {
             "id": row.id,
             "user_id": row.user_id,
             "org_type": row.org_type,
             "daily_capacity_meals": row.daily_capacity_meals,
-            "storage_types": json.loads(row.storage_types),
+            "storage_types": storage if isinstance(storage, list) else ["DRY"],
             "dietary_preferences": row.dietary_preferences,
             "max_travel_distance_km": row.max_travel_distance_km,
             "operating_hours": row.operating_hours,
             "created_at": row.created_at,
             "updated_at": row.updated_at,
         }
+
 
     @staticmethod
     def _recipient_profile_to_row(profile: Dict[str, Any]) -> Dict[str, Any]:
@@ -240,10 +320,19 @@ class InMemoryStore:
             "meals_rescued": row.meals_rescued,
             "food_weight_kg": row.food_weight_kg,
             "co2_savings_kg": row.co2_savings_kg,
+            "created_at": row.created_at,
         }
 
     @staticmethod
     def _impact_log_to_row(impact: Dict[str, Any]) -> Dict[str, Any]:
+        ca = impact.get("created_at")
+        if isinstance(ca, str):
+            try:
+                ca = datetime.fromisoformat(ca)
+            except Exception:
+                ca = datetime.now(timezone.utc)
+        elif ca is None:
+            ca = datetime.now(timezone.utc)
         return {
             "id": impact["id"],
             "donation_id": impact["donation_id"],
@@ -251,6 +340,7 @@ class InMemoryStore:
             "meals_rescued": impact["meals_rescued"],
             "food_weight_kg": impact["food_weight_kg"],
             "co2_savings_kg": impact["co2_savings_kg"],
+            "created_at": ca,
         }
 
 

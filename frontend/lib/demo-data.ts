@@ -6,6 +6,8 @@ export interface DemoUser {
   organization: string;
   location: string;
   avatarInitials: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface DemoDonation {
@@ -24,6 +26,8 @@ export interface DemoDonation {
   status: 'AVAILABLE' | 'RESERVED' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
   approxLocation: string;
   exactAddress: string;
+  latitude?: number;
+  longitude?: number;
   contactPerson: string;
   contactPhone: string;
   handlingNotes: string;
@@ -86,6 +90,8 @@ export const INITIAL_DEMO_USERS: Record<'provider' | 'recipient', DemoUser> = {
     organization: 'Green Valley Kitchen & Catering',
     location: 'Solapur Central',
     avatarInitials: 'GV',
+    latitude: 17.6599,
+    longitude: 75.9064,
   },
   recipient: {
     id: 'usr-recip-001',
@@ -95,6 +101,8 @@ export const INITIAL_DEMO_USERS: Record<'provider' | 'recipient', DemoUser> = {
     organization: 'Hope Shelter & Community Pantry',
     location: 'Solapur East (2.1 km away)',
     avatarInitials: 'HS',
+    latitude: 17.6650,
+    longitude: 75.9120,
   },
 };
 
@@ -115,6 +123,8 @@ export const INITIAL_DEMO_DONATIONS: DemoDonation[] = [
     status: 'AVAILABLE',
     approxLocation: 'Solapur Central Area • 2.1 km radius',
     exactAddress: '42 Market Cross Road, Commercial Complex, Solapur Central',
+    latitude: 17.6599,
+    longitude: 75.9064,
     contactPerson: 'Maya Sharma (Head Chef)',
     contactPhone: '+91 98765 43210',
     handlingNotes: 'Packed in food-grade thermal containers. Keep chilled or reheat above 65°C.',
@@ -136,6 +146,8 @@ export const INITIAL_DEMO_DONATIONS: DemoDonation[] = [
     status: 'AVAILABLE',
     approxLocation: 'Solapur Central Area • 2.1 km radius',
     exactAddress: '42 Market Cross Road, Commercial Complex, Solapur Central',
+    latitude: 17.6599,
+    longitude: 75.9064,
     contactPerson: 'Maya Sharma (Head Chef)',
     contactPhone: '+91 98765 43210',
     handlingNotes: 'Freshly baked this morning, sealed in moisture-proof crates.',

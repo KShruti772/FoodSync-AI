@@ -23,6 +23,7 @@ export default function RegisterForm() {
     role?: string;
   }>({});
 
+  const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validate = () => {
@@ -62,6 +63,7 @@ export default function RegisterForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setServerError(null);
 
     if (!validate()) {
       return;
@@ -70,6 +72,8 @@ export default function RegisterForm() {
     setIsSubmitting(true);
     try {
       await register(formData.fullName, formData.email, formData.password, formData.role);
+    } catch (err: any) {
+      setServerError(err.message || 'Registration failed. Please check the details and try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -77,6 +81,15 @@ export default function RegisterForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      {serverError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3.5 flex items-start gap-2.5 text-xs text-red-800">
+          <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <span className="font-semibold block">Registration Error</span>
+            <span>{serverError}</span>
+          </div>
+        </div>
+      )}
       {/* Role Selection (Radio Cards) */}
       <div className="space-y-1.5">
         <label className="block text-xs font-semibold text-slate-700">

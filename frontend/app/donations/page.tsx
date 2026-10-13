@@ -210,8 +210,10 @@ export default function DonationsListPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      completePickup(confirmModalId);
+                    onClick={async () => {
+                      if (confirmModalId) {
+                        await completePickup(confirmModalId);
+                      }
                       setConfirmModalId(null);
                     }}
                     className="px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg shadow-sm"

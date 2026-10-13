@@ -19,14 +19,14 @@ import {
 } from 'lucide-react';
 
 export default function RecipientDashboard() {
-  const { user, donations, matches } = useDemo();
+  const { user, donations, matches, recipientProfile } = useDemo();
 
   // Recipient matches
-  const recipientMatches = matches.filter((m) => m.recipientId === 'usr-recip-001' || m.recipientId === user?.id);
+  const recipientMatches = matches.filter((m) => m.recipientId === user?.id);
   const proposedMatches = recipientMatches.filter((m) => m.status === 'PROPOSED');
   const acceptedMatches = recipientMatches.filter((m) => m.status === 'ACCEPTED');
 
-  const reservedDonations = donations.filter((d) => d.status === 'RESERVED' && (d.reservedRecipientId === user?.id || d.reservedRecipientId === 'usr-recip-001'));
+  const reservedDonations = donations.filter((d) => d.status === 'RESERVED' && d.reservedRecipientId === user?.id);
   const totalAcceptedMeals = reservedDonations.reduce((sum, d) => sum + d.quantity, 0);
 
   return (
@@ -81,14 +81,24 @@ export default function RecipientDashboard() {
           <p className="mt-1 text-xs text-slate-500">Prepared for distribution</p>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Daily Intake Capacity</p>
-          <p className="mt-2 text-2xl sm:text-3xl font-extrabold text-slate-900">75 Meals</p>
-          <p className="mt-1 text-xs text-slate-500 flex items-center gap-1">
-            <Scale className="h-3.5 w-3.5 text-slate-400" />
-            Refrigeration & ambient supported
+        <Link
+          href="/settings"
+          className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs hover:border-teal-300 transition-colors group block"
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Daily Intake Capacity</p>
+            <span className="text-[11px] font-semibold text-teal-600 group-hover:underline">Settings →</span>
+          </div>
+          <p className="mt-2 text-2xl sm:text-3xl font-extrabold text-slate-900">
+            {recipientProfile ? `${recipientProfile.daily_capacity_meals} Meals` : '100 Meals'}
           </p>
-        </div>
+          <p className="mt-1 text-xs text-slate-500 flex items-center gap-1">
+            <Scale className="h-3.5 w-3.5 text-teal-600" />
+            {recipientProfile
+              ? `${(recipientProfile.storage_types || []).join(' • ')} storage`
+              : 'Refrigeration & ambient supported'}
+          </p>
+        </Link>
       </div>
 
       {/* Reserved Pickups Section (Privacy Revealed!) */}

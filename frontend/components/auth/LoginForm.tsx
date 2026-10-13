@@ -4,10 +4,10 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import PasswordInput from './PasswordInput';
 import { useDemo } from '@/lib/demo-context';
-import { Loader2, AlertCircle, Store, Building2, Sparkles } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 
 export default function LoginForm() {
-  const { login, loginAs } = useDemo();
+  const { login } = useDemo();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -19,8 +19,8 @@ export default function LoginForm() {
     password?: string;
   }>({});
 
+  const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [demoRoleLoading, setDemoRoleLoading] = useState<'FOOD_PROVIDER' | 'RECIPIENT' | null>(null);
 
   const validate = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -41,6 +41,7 @@ export default function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setServerError(null);
 
     if (!validate()) {
       return;
@@ -49,67 +50,24 @@ export default function LoginForm() {
     setIsSubmitting(true);
     try {
       await login(formData.email, formData.password);
+    } catch (err: any) {
+      setServerError(err.message || 'Invalid email or password.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleQuickDemo = (role: 'FOOD_PROVIDER' | 'RECIPIENT') => {
-    setDemoRoleLoading(role);
-    setTimeout(() => {
-      loginAs(role);
-    }, 300);
-  };
-
   return (
     <div className="space-y-5">
-      {/* 1-Click Demo Login Box for Mentor Demonstration */}
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5">
-        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900 mb-2">
-          <Sparkles className="h-3.5 w-3.5 text-emerald-700" />
-          <span>Quick Demo Access (1-Click)</span>
+      {serverError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3.5 flex items-start gap-2.5 text-xs text-red-800">
+          <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <span className="font-semibold block">Authentication Failed</span>
+            <span>{serverError}</span>
+          </div>
         </div>
-        <p className="text-[11px] text-slate-600 mb-3">
-          Select a role to explore the interactive prototype as a Food Provider or Recipient Organization.
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <button
-            type="button"
-            onClick={() => handleQuickDemo('FOOD_PROVIDER')}
-            disabled={demoRoleLoading !== null || isSubmitting}
-            className="flex items-center justify-center gap-2 rounded-lg bg-white border border-emerald-300 py-2.5 px-3 text-xs font-semibold text-emerald-900 shadow-2xs hover:bg-emerald-100/50 hover:border-emerald-400 transition-all disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          >
-            {demoRoleLoading === 'FOOD_PROVIDER' ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-700" />
-            ) : (
-              <Store className="h-3.5 w-3.5 text-emerald-700" />
-            )}
-            <span>Food Provider Demo</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleQuickDemo('RECIPIENT')}
-            disabled={demoRoleLoading !== null || isSubmitting}
-            className="flex items-center justify-center gap-2 rounded-lg bg-white border border-teal-300 py-2.5 px-3 text-xs font-semibold text-teal-900 shadow-2xs hover:bg-teal-100/50 hover:border-teal-400 transition-all disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-teal-500"
-          >
-            {demoRoleLoading === 'RECIPIENT' ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-teal-700" />
-            ) : (
-              <Building2 className="h-3.5 w-3.5 text-teal-700" />
-            )}
-            <span>Recipient Org Demo</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="relative flex items-center justify-center">
-        <div className="border-t border-slate-200 w-full"></div>
-        <span className="bg-white px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-          Or sign in with email
-        </span>
-      </div>
+      )}
 
       {/* Standard Form */}
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -128,8 +86,8 @@ export default function LoginForm() {
               setFormData({ ...formData, email: e.target.value });
               if (errors.email) setErrors({ ...errors, email: undefined });
             }}
-            disabled={isSubmitting || demoRoleLoading !== null}
-            placeholder="provider@demo.com or recipient@demo.com"
+            disabled={isSubmitting}
+            placeholder="provider@example.com or recipient@example.com"
             aria-invalid={Boolean(errors.email)}
             aria-describedby={errors.email ? 'email-error' : undefined}
             className={`block w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 disabled:bg-slate-50 disabled:text-slate-500 ${
@@ -157,7 +115,7 @@ export default function LoginForm() {
             if (errors.password) setErrors({ ...errors, password: undefined });
           }}
           autoComplete="current-password"
-          disabled={isSubmitting || demoRoleLoading !== null}
+          disabled={isSubmitting}
           error={errors.password}
         />
 
@@ -169,22 +127,18 @@ export default function LoginForm() {
               name="rememberMe"
               checked={formData.rememberMe}
               onChange={(e) => setFormData({ ...formData, rememberMe: e.target.checked })}
-              disabled={isSubmitting || demoRoleLoading !== null}
+              disabled={isSubmitting}
               className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
             />
             <span className="text-xs text-slate-600 select-none">Remember me</span>
           </label>
-
-          <span className="text-xs text-slate-500">
-            Demo password: <span className="font-mono text-slate-700 font-semibold">demo1234</span>
-          </span>
         </div>
 
         {/* Submit Button */}
         <div className="pt-2">
           <button
             type="submit"
-            disabled={isSubmitting || demoRoleLoading !== null}
+            disabled={isSubmitting}
             className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
           >
             {isSubmitting ? (

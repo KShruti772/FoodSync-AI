@@ -71,8 +71,13 @@ export default function CreateDonationPage() {
     setMatchingSimulationStep(3); // "Matches ranked and dispatched!"
     await new Promise((r) => setTimeout(r, 500));
 
-    const newDonationId = createDonation(formData);
-    router.push(`/donations/${newDonationId}`);
+    try {
+      const newDonationId = await createDonation(formData);
+      router.push(`/donations/${newDonationId}`);
+    } catch (err: any) {
+      setMatchingSimulationStep(null);
+      setErrors({ form: err?.message || 'Failed to create donation. Please check your inputs.' });
+    }
   };
 
   return (
@@ -140,6 +145,11 @@ export default function CreateDonationPage() {
             ) : (
               /* Form */
               <form onSubmit={handleSubmit} className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-2xs space-y-6">
+                {errors.form && (
+                  <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
+                    {errors.form}
+                  </div>
+                )}
                 {/* 1. Food Title */}
                 <div className="space-y-1.5">
                   <label htmlFor="title" className="block text-xs font-semibold text-slate-700">

@@ -20,8 +20,8 @@ export default function NotificationsPage() {
   const { user, notifications, markNotificationRead, markAllNotificationsRead } = useDemo();
 
   const userNotifications = user
-    ? notifications.filter((n) => n.userId === user.id || n.userId === 'usr-prov-001' || n.userId === 'usr-recip-001')
-    : notifications;
+    ? notifications.filter((n) => n.userId === user.id)
+    : [];
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
