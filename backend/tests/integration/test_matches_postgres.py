@@ -10,7 +10,7 @@ import pytest
 from app.core.database import SessionLocal, engine
 from app.core.store import store
 from app.main import app
-from app.models import DonationORM, MatchORM, RecipientProfileORM, UserORM
+from app.models import DonationORM, MatchORM, NotificationORM, RecipientProfileORM, UserORM
 from app.services.matching.heuristic import generate_matches_for_donation
 from app.services.reservation_service import ReservationService
 
@@ -244,11 +244,19 @@ def test_06_recipient_authorization_prevents_access_to_others_matches():
     with SessionLocal() as db:
         match_a = db.query(MatchORM).filter(MatchORM.donation_id == donation_id, MatchORM.recipient_id == recip_a_id).first()
         assert match_a is not None
+        match_a_id = match_a.id
 
     # Recipient B attempts to accept Recipient A's match
-    res_b_accept = client.post(f"/api/v1/matches/{match_a.id}/accept", headers={"Authorization": f"Bearer {recip_b_token}"})
-    assert res_b_accept.status_code == 400
+    res_b_accept = client.post(f"/api/v1/matches/{match_a_id}/accept", headers={"Authorization": f"Bearer {recip_b_token}"})
+    assert res_b_accept.status_code == 403
+    assert res_b_accept.json()["detail"]["error"]["code"] == "FORBIDDEN"
     assert "not assigned to this match" in res_b_accept.text.lower()
+
+    # Recipient B attempts to reject Recipient A's match
+    res_b_reject = client.post(f"/api/v1/matches/{match_a_id}/reject", headers={"Authorization": f"Bearer {recip_b_token}"})
+    assert res_b_reject.status_code == 403
+    assert res_b_reject.json()["detail"]["error"]["code"] == "FORBIDDEN"
+    assert "not assigned to this match" in res_b_reject.text.lower()
 
 
 def test_07_reservation_acceptance_updates_authoritative_database_record():
@@ -435,3 +443,391 @@ def test_13_reservation_service_does_not_resurrect_deleted_db_records_in_product
 
     with SessionLocal() as db:
         assert db.get(MatchORM, match_id) is None
+
+
+def test_14_rejecting_inactive_match_states_fails_with_400():
+    """Verify rejecting an EXPIRED or COMPLETED match fails with 400 INVALID_STATE."""
+    donor_id, donor_token = _register_provider(_unique_email("match_donor_14"))
+    recip_id, recip_token = _register_recipient(_unique_email("match_recip_14"), storage_types=["DRY"])
+    don_id = _create_donation(donor_token, title="Inactive Rejection Test", food_type="BAKERY", perishable=False, quantity=20)
+
+    with SessionLocal() as db:
+        m = db.query(MatchORM).filter(MatchORM.donation_id == don_id, MatchORM.recipient_id == recip_id).first()
+        assert m is not None
+        match_id = m.id
+
+    # 1. Test rejecting an EXPIRED match
+    with SessionLocal() as db:
+        m_row = db.get(MatchORM, match_id)
+        m_row.status = "EXPIRED"
+        db.commit()
+
+    rej_res = client.post(f"/api/v1/matches/{match_id}/reject", headers={"Authorization": f"Bearer {recip_token}"})
+    assert rej_res.status_code == 400
+    assert rej_res.json()["detail"]["error"]["code"] == "INVALID_STATE"
+    assert "cannot reject a match in expired status" in rej_res.json()["detail"]["error"]["message"].lower()
+
+    # 2. Test rejecting a COMPLETED match
+    with SessionLocal() as db:
+        m_row = db.get(MatchORM, match_id)
+        m_row.status = "COMPLETED"
+        db.commit()
+
+    rej_res2 = client.post(f"/api/v1/matches/{match_id}/reject", headers={"Authorization": f"Bearer {recip_token}"})
+    assert rej_res2.status_code == 400
+    assert rej_res2.json()["detail"]["error"]["code"] == "INVALID_STATE"
+    assert "cannot reject a match in completed status" in rej_res2.json()["detail"]["error"]["message"].lower()
+
+    # 3. Test rejecting an ACCEPTED match
+    with SessionLocal() as db:
+        m_row = db.get(MatchORM, match_id)
+        m_row.status = "ACCEPTED"
+        db.commit()
+
+    rej_res3 = client.post(f"/api/v1/matches/{match_id}/reject", headers={"Authorization": f"Bearer {recip_token}"})
+    assert rej_res3.status_code == 400
+    assert rej_res3.json()["detail"]["error"]["code"] == "INVALID_STATE"
+    assert "cannot reject a match in accepted status" in rej_res3.json()["detail"]["error"]["message"].lower()
+
+    # 4. Test rejecting an already REJECTED match
+    with SessionLocal() as db:
+        m_row = db.get(MatchORM, match_id)
+        m_row.status = "REJECTED"
+        db.commit()
+
+    rej_res4 = client.post(f"/api/v1/matches/{match_id}/reject", headers={"Authorization": f"Bearer {recip_token}"})
+    assert rej_res4.status_code == 400
+    assert rej_res4.json()["detail"]["error"]["code"] == "INVALID_STATE"
+    assert "cannot reject a match in rejected status" in rej_res4.json()["detail"]["error"]["message"].lower()
+
+
+def test_15_rejecting_match_for_cancelled_donation_does_not_promote_competing_candidate():
+    """Verify rejecting a match for a cancelled donation does not promote another candidate or notify anyone."""
+    donor_id, donor_token = _register_provider(_unique_email("match_donor_15"))
+    recip_1_id, recip_1_token = _register_recipient(_unique_email("match_recip_15a"), storage_types=["DRY"], lat=17.660, lng=75.908)
+    recip_2_id, recip_2_token = _register_recipient(_unique_email("match_recip_15b"), storage_types=["DRY"], lat=17.662, lng=75.910)
+
+    don_id = _create_donation(donor_token, title="To Be Cancelled Donation", food_type="BAKERY", perishable=False, quantity=30)
+
+    with SessionLocal() as db:
+        m1 = db.query(MatchORM).filter(MatchORM.donation_id == don_id, MatchORM.recipient_id == recip_1_id).first()
+        m2 = db.query(MatchORM).filter(MatchORM.donation_id == don_id, MatchORM.recipient_id == recip_2_id).first()
+        assert m1 is not None
+        assert m2 is not None
+        m1_id = m1.id
+        m2_id = m2.id
+
+        # Simulate scenario where donation was cancelled by donor
+        don = db.get(DonationORM, don_id)
+        don.status = "CANCELLED"
+        # Reset m1 to NOTIFIED so it is an active match being rejected while donation is CANCELLED
+        m1.status = "NOTIFIED"
+        m2.status = "PROPOSED"
+        db.commit()
+
+    # Clear notifications for recip_2
+    with SessionLocal() as db:
+        db.query(NotificationORM).filter(NotificationORM.user_id == recip_2_id).delete()
+        db.commit()
+
+    # Recipient 1 rejects their match
+    res = client.post(f"/api/v1/matches/{m1_id}/reject", headers={"Authorization": f"Bearer {recip_1_token}"})
+    assert res.status_code == 200
+    assert res.json()["data"]["status"] == "REJECTED"
+
+    # Verify candidate 2 was NOT promoted to NOTIFIED and received NO notification
+    with SessionLocal() as db:
+        m2_fresh = db.get(MatchORM, m2_id)
+        assert m2_fresh.status == "PROPOSED", "Candidate 2 must remain PROPOSED because donation is CANCELLED"
+
+        notif = db.query(NotificationORM).filter(
+            NotificationORM.user_id == recip_2_id,
+            NotificationORM.match_id == m2_id,
+        ).first()
+        assert notif is None, "No notification should be created for candidate 2 when donation is CANCELLED"
+
+
+def test_16_accept_and_reject_by_unauthorized_recipient_returns_403():
+    """Verify accepting or rejecting another recipient's match returns HTTP 403 FORBIDDEN."""
+    donor_id, donor_token = _register_provider(_unique_email("match_donor_16"))
+    recip_1_id, recip_1_token = _register_recipient(_unique_email("match_recip_16a"), storage_types=["DRY"], lat=17.660, lng=75.908)
+    recip_2_id, recip_2_token = _register_recipient(_unique_email("match_recip_16b"), storage_types=["DRY"], lat=17.662, lng=75.910)
+
+    don_id = _create_donation(donor_token, title="Cross Recipient Test", food_type="BAKERY", perishable=False, quantity=25)
+
+    with SessionLocal() as db:
+        m1 = db.query(MatchORM).filter(MatchORM.donation_id == don_id, MatchORM.recipient_id == recip_1_id).first()
+        assert m1 is not None
+        m1_id = m1.id
+
+    # Recipient 2 tries to accept Recipient 1's match
+    accept_res = client.post(f"/api/v1/matches/{m1_id}/accept", headers={"Authorization": f"Bearer {recip_2_token}"})
+    assert accept_res.status_code == 403
+    assert accept_res.json()["detail"]["error"]["code"] == "FORBIDDEN"
+    assert "not assigned to this match" in accept_res.json()["detail"]["error"]["message"]
+
+    # Recipient 2 tries to reject Recipient 1's match
+    reject_res = client.post(f"/api/v1/matches/{m1_id}/reject", headers={"Authorization": f"Bearer {recip_2_token}"})
+    assert reject_res.status_code == 403
+    assert reject_res.json()["detail"]["error"]["code"] == "FORBIDDEN"
+    assert "not assigned to this match" in reject_res.json()["detail"]["error"]["message"]
+
+
+def test_17_successful_rejection_promotes_next_eligible_candidate():
+    """Verify that rejecting a valid match promotes the next eligible proposed candidate and notifies them."""
+    donor_id, donor_token = _register_provider(_unique_email("match_donor_17"))
+    recip_1_id, recip_1_token = _register_recipient(_unique_email("match_recip_17a"), storage_types=["DRY"], lat=17.660, lng=75.908)
+    recip_2_id, recip_2_token = _register_recipient(_unique_email("match_recip_17b"), storage_types=["DRY"], lat=17.662, lng=75.910)
+
+    don_id = _create_donation(donor_token, title="Active Reallocation Test", food_type="BAKERY", perishable=False, quantity=40)
+
+    with SessionLocal() as db:
+        m1 = db.query(MatchORM).filter(MatchORM.donation_id == don_id, MatchORM.recipient_id == recip_1_id).first()
+        m2 = db.query(MatchORM).filter(MatchORM.donation_id == don_id, MatchORM.recipient_id == recip_2_id).first()
+        assert m1 is not None
+        assert m2 is not None
+        m1_id = m1.id
+        m2_id = m2.id
+
+    # Recipient 1 rejects their match
+    res = client.post(f"/api/v1/matches/{m1_id}/reject", headers={"Authorization": f"Bearer {recip_1_token}"})
+    assert res.status_code == 200
+    assert res.json()["data"]["status"] == "REJECTED"
+
+    # Some eligible proposed candidate was promoted to NOTIFIED and received a notification
+    with SessionLocal() as db:
+        notified_match = db.query(MatchORM).filter(
+            MatchORM.donation_id == don_id,
+            MatchORM.status == "NOTIFIED",
+        ).first()
+        assert notified_match is not None
+        assert notified_match.id != m1_id
+
+        notif = db.query(NotificationORM).filter(
+            NotificationORM.user_id == notified_match.recipient_id,
+            NotificationORM.match_id == notified_match.id,
+            NotificationORM.type == "MATCH_ALERT",
+        ).first()
+        assert notif is not None
+
+
+def test_18_concurrent_acceptance_and_rejection_leaves_consistent_state():
+    """Verify that concurrent acceptance and rejection on the same donation leaves consistent database states."""
+    donor_id, donor_token = _register_provider(_unique_email("match_donor_18"))
+    recip_1_id, recip_1_token = _register_recipient(_unique_email("match_recip_18a"), storage_types=["DRY"], lat=17.660, lng=75.908)
+    recip_2_id, recip_2_token = _register_recipient(_unique_email("match_recip_18b"), storage_types=["DRY"], lat=17.662, lng=75.910)
+
+    don_id = _create_donation(donor_token, title="Race Test", food_type="BAKERY", perishable=False, quantity=40)
+
+    with SessionLocal() as db:
+        m1 = db.query(MatchORM).filter(MatchORM.donation_id == don_id, MatchORM.recipient_id == recip_1_id).first()
+        m2 = db.query(MatchORM).filter(MatchORM.donation_id == don_id, MatchORM.recipient_id == recip_2_id).first()
+        assert m1 is not None
+        assert m2 is not None
+        m1_id = m1.id
+        m2_id = m2.id
+
+    barrier = threading.Barrier(2)
+    results = []
+
+    def accept_task():
+        barrier.wait()
+        res = client.post(f"/api/v1/matches/{m1_id}/accept", headers={"Authorization": f"Bearer {recip_1_token}"})
+        return ("ACCEPT", res.status_code, res.json())
+
+    def reject_task():
+        barrier.wait()
+        res = client.post(f"/api/v1/matches/{m2_id}/reject", headers={"Authorization": f"Bearer {recip_2_token}"})
+        return ("REJECT", res.status_code, res.json())
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        f1 = executor.submit(accept_task)
+        f2 = executor.submit(reject_task)
+        results = [f1.result(), f2.result()]
+
+    accept_res = next(r for r in results if r[0] == "ACCEPT")
+    reject_res = next(r for r in results if r[0] == "REJECT")
+
+    assert accept_res[1] == 200
+
+    with SessionLocal() as db:
+        don = db.get(DonationORM, don_id)
+        assert don.status == "RESERVED"
+        m1_row = db.get(MatchORM, m1_id)
+        assert m1_row.status == "ACCEPTED"
+        m2_row = db.get(MatchORM, m2_id)
+
+        if reject_res[1] == 200:
+            assert m2_row.status == "REJECTED"
+        else:
+            assert reject_res[1] == 400
+            assert m2_row.status == "EXPIRED"
+
+        active_matches = db.query(MatchORM).filter(
+            MatchORM.donation_id == don_id,
+            MatchORM.status.in_(["PROPOSED", "NOTIFIED"]),
+        ).all()
+        assert len(active_matches) == 0
+
+
+def test_19_rejection_when_donation_is_reserved_completed_or_missing():
+    """Verify that rejection does not reallocate when donation is reserved, completed, or missing,
+    and missing donation rolls back with an error."""
+    donor_id, donor_token = _register_provider(_unique_email("match_donor_19"))
+    recip_1_id, recip_1_token = _register_recipient(_unique_email("match_recip_19a"), storage_types=["DRY"], lat=17.660, lng=75.908)
+    recip_2_id, recip_2_token = _register_recipient(_unique_email("match_recip_19b"), storage_types=["DRY"], lat=17.662, lng=75.910)
+
+    # 1. Test when donation is RESERVED
+    don_id_1 = _create_donation(donor_token, title="Reserved Donation Realloc Test", food_type="BAKERY", perishable=False, quantity=30)
+    with SessionLocal() as db:
+        m1 = db.query(MatchORM).filter(MatchORM.donation_id == don_id_1, MatchORM.recipient_id == recip_1_id).first()
+        m2 = db.query(MatchORM).filter(MatchORM.donation_id == don_id_1, MatchORM.recipient_id == recip_2_id).first()
+        m1_id = m1.id
+        m2_id = m2.id
+        don1 = db.get(DonationORM, don_id_1)
+        don1.status = "RESERVED"
+        m1.status = "NOTIFIED"
+        m2.status = "PROPOSED"
+        db.commit()
+
+    with SessionLocal() as db:
+        db.query(NotificationORM).filter(NotificationORM.user_id == recip_2_id).delete()
+        db.commit()
+
+    rej_res1 = client.post(f"/api/v1/matches/{m1_id}/reject", headers={"Authorization": f"Bearer {recip_1_token}"})
+    assert rej_res1.status_code == 200
+    assert rej_res1.json()["data"]["status"] == "REJECTED"
+
+    with SessionLocal() as db:
+        assert db.get(MatchORM, m2_id).status == "PROPOSED"
+        notif = db.query(NotificationORM).filter(NotificationORM.user_id == recip_2_id, NotificationORM.match_id == m2_id).first()
+        assert notif is None
+
+    # 2. Test when donation is COMPLETED
+    don_id_2 = _create_donation(donor_token, title="Completed Donation Realloc Test", food_type="BAKERY", perishable=False, quantity=30)
+    with SessionLocal() as db:
+        m1 = db.query(MatchORM).filter(MatchORM.donation_id == don_id_2, MatchORM.recipient_id == recip_1_id).first()
+        m2 = db.query(MatchORM).filter(MatchORM.donation_id == don_id_2, MatchORM.recipient_id == recip_2_id).first()
+        m1_id = m1.id
+        m2_id = m2.id
+        don2 = db.get(DonationORM, don_id_2)
+        don2.status = "COMPLETED"
+        m1.status = "NOTIFIED"
+        m2.status = "PROPOSED"
+        db.commit()
+
+    with SessionLocal() as db:
+        db.query(NotificationORM).filter(NotificationORM.user_id == recip_2_id).delete()
+        db.commit()
+
+    rej_res2 = client.post(f"/api/v1/matches/{m1_id}/reject", headers={"Authorization": f"Bearer {recip_1_token}"})
+    assert rej_res2.status_code == 200
+    assert rej_res2.json()["data"]["status"] == "REJECTED"
+
+    with SessionLocal() as db:
+        assert db.get(MatchORM, m2_id).status == "PROPOSED"
+        notif = db.query(NotificationORM).filter(NotificationORM.user_id == recip_2_id, NotificationORM.match_id == m2_id).first()
+        assert notif is None
+
+    # 3. Test when donation is MISSING: rolls back, does not commit partial update
+    with SessionLocal() as db:
+        orphan_match = MatchORM(
+            id=f"match_{uuid.uuid4().hex[:8]}_orphan",
+            donation_id="don_missing_never_existed",
+            recipient_id=recip_1_id,
+            status="NOTIFIED",
+        )
+        db.add(orphan_match)
+        db.commit()
+        orphan_id = orphan_match.id
+
+    # Ensure store does not have it either
+    store.donations.pop("don_missing_never_existed", None)
+
+    rej_res3 = client.post(f"/api/v1/matches/{orphan_id}/reject", headers={"Authorization": f"Bearer {recip_1_token}"})
+    assert rej_res3.status_code == 400
+    assert rej_res3.json()["detail"]["error"]["code"] == "INVALID_STATE"
+    assert "donation not found" in rej_res3.json()["detail"]["error"]["message"].lower()
+
+    # Verify rollback: orphan match must remain NOTIFIED in database
+    with SessionLocal() as db:
+        fresh_orphan = db.get(MatchORM, orphan_id)
+        assert fresh_orphan.status == "NOTIFIED", "Match status must not be updated if donation is missing"
+
+
+def test_20_rejection_promotes_at_most_one_candidate_and_creates_one_notification():
+    """Verify that rejection of an available donation promotes at most one candidate and creates at most one notification."""
+    donor_id, donor_token = _register_provider(_unique_email("match_donor_20"))
+    recip_1_id, recip_1_token = _register_recipient(_unique_email("match_recip_20a"), storage_types=["DRY"], lat=17.660, lng=75.908)
+    recip_2_id, recip_2_token = _register_recipient(_unique_email("match_recip_20b"), storage_types=["DRY"], lat=17.662, lng=75.910)
+    recip_3_id, recip_3_token = _register_recipient(_unique_email("match_recip_20c"), storage_types=["DRY"], lat=17.665, lng=75.915)
+
+    don_id = _create_donation(donor_token, title="Three Candidate Test", food_type="BAKERY", perishable=False, quantity=60)
+
+    with SessionLocal() as db:
+        m1 = db.query(MatchORM).filter(MatchORM.donation_id == don_id, MatchORM.recipient_id == recip_1_id).first()
+        m2 = db.query(MatchORM).filter(MatchORM.donation_id == don_id, MatchORM.recipient_id == recip_2_id).first()
+        m3 = db.query(MatchORM).filter(MatchORM.donation_id == don_id, MatchORM.recipient_id == recip_3_id).first()
+        assert m1 is not None
+        assert m2 is not None
+        assert m3 is not None
+        m1_id = m1.id
+        m2_id = m2.id
+        m3_id = m3.id
+
+        # Set explicit scores so m2 is higher rank than m3
+        m1.status = "NOTIFIED"
+        m2.status = "PROPOSED"
+        m2.compatibility_score = 0.90
+        m3.status = "PROPOSED"
+        m3.compatibility_score = 0.70
+        db.commit()
+
+    # Clear previous notifications for recip_2 and recip_3
+    with SessionLocal() as db:
+        db.query(NotificationORM).filter(NotificationORM.user_id.in_([recip_2_id, recip_3_id])).delete()
+        db.commit()
+
+    # Recipient 1 rejects match
+    res = client.post(f"/api/v1/matches/{m1_id}/reject", headers={"Authorization": f"Bearer {recip_1_token}"})
+    assert res.status_code == 200
+    assert res.json()["data"]["status"] == "REJECTED"
+
+    with SessionLocal() as db:
+        # Exactly one candidate (m2) was promoted to NOTIFIED
+        m2_row = db.get(MatchORM, m2_id)
+        m3_row = db.get(MatchORM, m3_id)
+        assert m2_row.status == "NOTIFIED", "Highest ranked proposed candidate must be NOTIFIED"
+        assert m3_row.status == "PROPOSED", "Lower ranked proposed candidate must remain PROPOSED"
+
+        # Exactly one notification was created across all candidates
+        notifs_m2 = db.query(NotificationORM).filter(NotificationORM.match_id == m2_id, NotificationORM.type == "MATCH_ALERT").all()
+        notifs_m3 = db.query(NotificationORM).filter(NotificationORM.match_id == m3_id, NotificationORM.type == "MATCH_ALERT").all()
+        assert len(notifs_m2) == 1, "Exactly one notification for promoted match m2"
+        assert len(notifs_m3) == 0, "No notifications for unpromoted match m3"
+
+
+def test_21_rejecting_nonexistent_match_fails_with_400():
+    """Verify rejecting a nonexistent match returns HTTP 400 with INVALID_STATE."""
+    recip_id, recip_token = _register_recipient(_unique_email("match_recip_21"), storage_types=["DRY"])
+    nonexistent_match_id = f"match_nonexistent_{uuid.uuid4().hex}"
+
+    # Ensure nonexistent_match_id is not in store.matches so fallback cannot trigger
+    store.matches.pop(nonexistent_match_id, None)
+
+    with SessionLocal() as db:
+        assert db.get(MatchORM, nonexistent_match_id) is None
+
+    res = client.post(
+        f"/api/v1/matches/{nonexistent_match_id}/reject",
+        headers={"Authorization": f"Bearer {recip_token}"},
+    )
+
+    assert res.status_code == 400
+    data = res.json()
+    assert data["detail"]["success"] is False
+    assert data["detail"]["error"]["code"] == "INVALID_STATE"
+    assert "match not found" in data["detail"]["error"]["message"].lower()
+
+    with SessionLocal() as db:
+        assert db.get(MatchORM, nonexistent_match_id) is None

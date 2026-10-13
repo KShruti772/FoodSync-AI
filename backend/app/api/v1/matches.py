@@ -53,8 +53,16 @@ def list_donation_matches(donation_id: str, current_user: dict = Depends(get_cur
 def accept_match(match_id: str, current_user: dict = Depends(get_current_active_user)):
     try:
         match = ReservationService.accept_match(match_id, current_user["id"])
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"success": False, "error": {"code": "FORBIDDEN", "message": str(exc), "details": []}},
+        ) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"success": False, "error": {"code": "INVALID_STATE", "message": str(exc), "details": []}}) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"success": False, "error": {"code": "INVALID_STATE", "message": str(exc), "details": []}},
+        ) from exc
     return {"success": True, "message": "Match accepted", "data": match}
 
 
@@ -62,6 +70,14 @@ def accept_match(match_id: str, current_user: dict = Depends(get_current_active_
 def reject_match(match_id: str, current_user: dict = Depends(get_current_active_user)):
     try:
         match = ReservationService.reject_match(match_id, current_user["id"])
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"success": False, "error": {"code": "FORBIDDEN", "message": str(exc), "details": []}},
+        ) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"success": False, "error": {"code": "INVALID_STATE", "message": str(exc), "details": []}}) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"success": False, "error": {"code": "INVALID_STATE", "message": str(exc), "details": []}},
+        ) from exc
     return {"success": True, "message": "Match rejected", "data": match}
