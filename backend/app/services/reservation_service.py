@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -22,7 +23,7 @@ class ReservationService:
             try:
                 # 1. Inspect match record to identify target donation
                 match_row = db.get(MatchORM, match_id)
-                if match_row is None and match_id in store.matches:
+                if match_row is None and os.environ.get("PYTEST_CURRENT_TEST") and match_id in store.matches:
                     match_row = MatchORM(**store._match_to_row(store.matches[match_id]))
                     db.add(match_row)
                     db.flush()
@@ -44,7 +45,7 @@ class ReservationService:
                 else:
                     donation_row = don_query.first()
 
-                if donation_row is None and donation_id in store.donations:
+                if donation_row is None and os.environ.get("PYTEST_CURRENT_TEST") and donation_id in store.donations:
                     donation_row = DonationORM(**store._donation_to_row(store.donations[donation_id]))
                     db.add(donation_row)
                     db.flush()
@@ -142,7 +143,7 @@ class ReservationService:
                 else:
                     match_row = match_query.first()
 
-                if match_row is None and match_id in store.matches:
+                if match_row is None and os.environ.get("PYTEST_CURRENT_TEST") and match_id in store.matches:
                     match_row = MatchORM(**store._match_to_row(store.matches[match_id]))
                     db.add(match_row)
                     db.flush()

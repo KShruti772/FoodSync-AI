@@ -373,3 +373,65 @@ def test_11_matching_scores_and_eligibility_rules_preserved():
         match_compatible = db.query(MatchORM).filter(MatchORM.donation_id == don_dry_id, MatchORM.recipient_id == recip_dry_id).first()
         assert match_compatible is not None, "Compatible candidate must generate a match"
         assert 0.0 < match_compatible.compatibility_score <= 1.0
+
+
+def test_12_donation_matches_api_authoritative_postgres_over_stale_memory():
+    """Verify GET /api/v1/donations/{id}/matches queries PostgreSQL authoritatively.
+
+    If PostgreSQL has 0 matches for a valid donation, it must return an empty list [],
+    even if stale in-memory matches linger in store.matches.
+    """
+    donor_id, donor_token = _register_provider(_unique_email("match_donor_12"))
+    don_id = _create_donation(donor_token, title="Solo Donation", food_type="BAKERY", perishable=False, quantity=15)
+
+    with SessionLocal() as db:
+        db.query(MatchORM).filter(MatchORM.donation_id == don_id).delete()
+        db.commit()
+
+    fake_match_id = f"fake_stale_match_{uuid.uuid4().hex[:8]}"
+    store.matches[fake_match_id] = {
+        "id": fake_match_id,
+        "donation_id": don_id,
+        "recipient_id": "fake_recipient_id",
+        "compatibility_score": 0.99,
+        "distance_km": 1.2,
+        "matched_factors": {},
+        "status": "PROPOSED",
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+    }
+
+    try:
+        res = client.get(
+            f"/api/v1/donations/{don_id}/matches",
+            headers={"Authorization": f"Bearer {donor_token}"},
+        )
+        assert res.status_code == 200
+        matches = res.json()
+        assert matches == [], "Must return empty list from authoritative DB, ignoring stale store.matches"
+    finally:
+        store.matches.pop(fake_match_id, None)
+
+
+def test_13_reservation_service_does_not_resurrect_deleted_db_records_in_production(monkeypatch):
+    """Verify ReservationService.accept_match refuses to resurrect deleted DB matches in production."""
+    donor_id, donor_token = _register_provider(_unique_email("match_donor_13"))
+    recip_id, recip_token = _register_recipient(_unique_email("match_recip_13"), storage_types=["DRY"])
+    don_id = _create_donation(donor_token, title="Resurrection Test", food_type="BAKERY", perishable=False, quantity=25)
+
+    with SessionLocal() as db:
+        match_row = db.query(MatchORM).filter(MatchORM.donation_id == don_id, MatchORM.recipient_id == recip_id).first()
+        assert match_row is not None
+        match_id = match_row.id
+        db.delete(match_row)
+        db.commit()
+
+    assert match_id in store.matches
+
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+
+    with pytest.raises(ValueError, match="Match not found"):
+        ReservationService.accept_match(match_id, recip_id)
+
+    with SessionLocal() as db:
+        assert db.get(MatchORM, match_id) is None
