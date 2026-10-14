@@ -605,3 +605,29 @@ def test_09_repeated_sweeps_idempotent():
     sweep3 = ExpiryService.sweep_expired_donations(as_of=now)
     assert sweep3["expired_count"] == 0
     assert sweep3["expired_donation_ids"] == []
+
+# ---------------------------------------------------------------------------
+# Test 10: Direct expiry call must not expire a future-expiry donation
+# ---------------------------------------------------------------------------
+def test_10_direct_expiry_does_not_expire_future_donation():
+    """A direct expiry call must respect the supplied current time."""
+    _, prov_token = _register_provider(_unique_email("prov_future_expiry"))
+    now = datetime.now(timezone.utc)
+
+    res = _create_donation(
+        prov_token,
+        title="Future Expiry Food Batch",
+        expiry_time=now + timedelta(hours=2),
+    )
+    assert res.status_code == 201, res.text
+    donation_id = res.json()["id"]
+
+    result = ExpiryService.expire_donation(donation_id, now=now)
+
+    assert result is not None
+    assert result["status"] == "AVAILABLE"
+
+    with SessionLocal() as db:
+        donation_row = db.get(DonationORM, donation_id)
+        assert donation_row is not None
+        assert donation_row.status == "AVAILABLE"

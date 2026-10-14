@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      FoodSync-AI Scheduled Expiry Runner
+      Job Label: com.foodsync.sweep_expiry
+
+      SAFETY NOTICE:
+      - This template is configured by default for read-only preview (--dry-run).
+      - Do NOT activate without explicit approval.
+      - Execution interval: 300 seconds (5 minutes).
+      - Working directory ensures app/core/config.py loads .env relative to backend/.
+    -->
+    <key>Label</key>
+    <string>com.foodsync.sweep_expiry</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{PYTHON_BIN}}</string>
+        <string>-m</string>
+        <string>app.scripts.sweep_expiry</string>
+        <string>--dry-run</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>{{BACKEND_DIR}}</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>{{BACKEND_DIR}}</string>
+    </dict>
+
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>{{LOG_DIR}}/sweep_expiry.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>{{LOG_DIR}}/sweep_expiry.stderr.log</string>
+</dict>
+</plist>

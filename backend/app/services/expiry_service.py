@@ -92,6 +92,10 @@ class ExpiryService:
         if donation_row.status not in ("AVAILABLE", "RESERVED"):
             return store._donation_from_row(donation_row)
 
+        # Recheck expiry after acquiring the donation row lock.
+        if _as_utc(donation_row.expiry_time) > _as_utc(now):
+            return store._donation_from_row(donation_row)
+
         prev_status = donation_row.status
 
         # 2. Row-level lock on associated MatchORM records
