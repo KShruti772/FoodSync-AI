@@ -17,6 +17,17 @@ export interface ApiAuthResponse {
   token: string;
 }
 
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  role: 'FOOD_PROVIDER' | 'RECIPIENT';
+  organization_name: string;
+  phone: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -47,16 +58,7 @@ export async function apiLogin(email: string, password: string): Promise<ApiAuth
   });
 }
 
-export async function apiRegister(payload: {
-  email: string;
-  password: string;
-  role: 'FOOD_PROVIDER' | 'RECIPIENT';
-  organization_name: string;
-  phone: string;
-  address: string;
-  latitude: number;
-  longitude: number;
-}): Promise<ApiAuthResponse> {
+export async function apiRegister(payload: RegisterPayload): Promise<ApiAuthResponse> {
   return apiFetch<ApiAuthResponse>('/api/v1/auth/register', {
     method: 'POST',
     body: JSON.stringify(payload),

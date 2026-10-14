@@ -4,6 +4,8 @@ from typing import Any
 
 from app.core.security import create_access_token, hash_password, verify_password
 from app.core.store import store
+from app.services.matching.heuristic import generate_matches_for_donation
+from app.services.recipient_service import RecipientService
 
 
 class AuthService:
@@ -32,6 +34,11 @@ class AuthService:
         }
         store.users[user_id] = user
         store.sync_users()
+        if user["role"] == "RECIPIENT":
+            RecipientService.get_or_create_profile(user)
+            for donation in store.donations.values():
+                if donation["status"] == "AVAILABLE":
+                    generate_matches_for_donation(donation["id"])
         return user
 
     @staticmethod

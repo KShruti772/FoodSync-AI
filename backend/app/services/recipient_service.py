@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.core.store import store
+from app.services.matching.heuristic import rank_matches
 
 
 class RecipientService:
@@ -57,7 +58,7 @@ class RecipientService:
 
     @staticmethod
     def list_candidate_matches(user: dict[str, Any]) -> list[dict[str, Any]]:
-        return [
+        return rank_matches([
             item for item in store.matches.values()
             if item["recipient_id"] == user["id"] and item["status"] in {"PROPOSED", "NOTIFIED"}
-        ]
+        ])

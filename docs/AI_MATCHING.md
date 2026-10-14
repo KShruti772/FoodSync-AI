@@ -96,6 +96,10 @@ $$S_{urg} =
 0.3 & \text{if } T_{remain} > 24\text{ hours} \quad \text{(Stable / Non-urgent)}
 \end{cases}$$
 
+Recipient organization coordinates are collected during signup alongside the street address. The browser can fill these coordinates from the organization's current location, or they can be entered manually. The Haversine distance between donation pickup coordinates and recipient coordinates is used for proximity filtering and ranking; the free-text address itself is retained as contact/location information and is not geocoded by the MVP.
+
+Candidates with less than 30 minutes until expiry are excluded. Equal scores are ordered by distance ascending, urgency descending, then recipient ID ascending.
+
 ---
 
 ### 3.3 Quantity & Capacity Fit Score ($S_{cap}$)

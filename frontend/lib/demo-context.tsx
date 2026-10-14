@@ -15,6 +15,7 @@ import {
   INITIAL_DEMO_IMPACT,
 } from './demo-data';
 import { apiGetMe, apiLogin, apiRegister } from './api';
+import type { RegisterPayload } from './api';
 
 interface DemoContextType {
   user: DemoUser | null;
@@ -26,7 +27,7 @@ interface DemoContextType {
   unreadCount: number;
   loginAs: (role: 'FOOD_PROVIDER' | 'RECIPIENT') => void;
   login: (email: string, password: string, role?: 'FOOD_PROVIDER' | 'RECIPIENT') => Promise<void>;
-  register: (fullName: string, email: string, password: string, role: 'FOOD_PROVIDER' | 'RECIPIENT') => Promise<void>;
+  register: (payload: RegisterPayload) => Promise<void>;
   logout: () => void;
   switchRole: () => void;
   createDonation: (data: {
@@ -195,45 +196,12 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (fullName: string, email: string, password: string, role: 'FOOD_PROVIDER' | 'RECIPIENT') => {
-    try {
-      const response = await apiRegister({
-        email,
-        password,
-        role,
-        organization_name: fullName,
-        phone: '+91 9000000000',
-        address: 'Solapur, Maharashtra',
-        latitude: 17.6599,
-        longitude: 75.9064,
-      });
-      const newUser = mapBackendUser(response.user);
-      saveToken(response.token);
-      saveUser(newUser);
-      router.push('/dashboard');
-      return;
-    } catch {
-      const initials = fullName
-        .split(' ')
-        .map((part) => part[0])
-        .join('')
-        .substring(0, 2)
-        .toUpperCase() || (role === 'FOOD_PROVIDER' ? 'FP' : 'RO');
-
-      const demoUser: DemoUser = {
-        id: `usr-${Date.now().toString().slice(-4)}`,
-        name: fullName,
-        email,
-        role,
-        organization: role === 'FOOD_PROVIDER' ? `${fullName}'s Kitchen` : `${fullName} Relief Center`,
-        location: 'Solapur Urban District',
-        avatarInitials: initials,
-      };
-
-      saveToken(null);
-      saveUser(demoUser);
-      router.push('/dashboard');
-    }
+  const register = async (payload: RegisterPayload) => {
+    const response = await apiRegister(payload);
+    const newUser = mapBackendUser(response.user);
+    saveToken(response.token);
+    saveUser(newUser);
+    router.push('/dashboard');
   };
 
   const logout = () => {

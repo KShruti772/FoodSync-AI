@@ -7,6 +7,18 @@ from app.core.store import store
 from app.utils.geo import haversine_km
 
 
+def rank_matches(matches: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(
+        matches,
+        key=lambda item: (
+            -item["compatibility_score"],
+            item["distance_km"],
+            -(item.get("matched_factors") or {}).get("urgency_score", 0.0),
+            item["recipient_id"],
+        ),
+    )
+
+
 def _score_distance(distance_km: float, max_distance_km: float) -> float:
     if max_distance_km <= 0:
         return 0.0
@@ -14,17 +26,22 @@ def _score_distance(distance_km: float, max_distance_km: float) -> float:
 
 
 def _score_urgency(donation: dict[str, Any]) -> float:
-    try:
-        expiry = donation["expiry_time"]
-        if isinstance(expiry, str):
-            expiry = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
-        now = datetime.now(timezone.utc)
-        hours_left = max(0.0, (expiry - now).total_seconds() / 3600)
-        if hours_left <= 0:
-            return 0.0
-        return min(1.0, hours_left / 12.0)
-    except Exception:
+    expiry = donation["expiry_time"]
+    if isinstance(expiry, str):
+        expiry = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=timezone.utc)
+    hours_left = (expiry - datetime.now(timezone.utc)).total_seconds() / 3600
+
+    if hours_left < 0.5:
+        return 0.0
+    if hours_left <= 2:
+        return 1.0
+    if hours_left <= 6:
+        return 0.8
+    if hours_left <= 24:
         return 0.5
+    return 0.3
 
 
 def _score_capacity(recipient: dict[str, Any], donation: dict[str, Any]) -> float:
@@ -59,6 +76,13 @@ def generate_matches_for_donation(donation_id: str) -> list[dict[str, Any]]:
     for recipient_user in store.users.values():
         if recipient_user.get("role") != "RECIPIENT":
             continue
+        if recipient_user.get("latitude") is None or recipient_user.get("longitude") is None:
+            continue
+        if any(
+            match["donation_id"] == donation_id and match["recipient_id"] == recipient_user["id"]
+            for match in store.matches.values()
+        ):
+            continue
 
         profile = store.recipient_profiles.get(recipient_user["id"])
         if not profile:
@@ -78,6 +102,8 @@ def generate_matches_for_donation(donation_id: str) -> list[dict[str, Any]]:
 
         dist_score = _score_distance(distance, max_allowed_distance)
         urgency_score = _score_urgency(donation)
+        if urgency_score <= 0:
+            continue
         capacity_score = _score_capacity(profile, donation)
 
         total_score = round(
@@ -118,4 +144,4 @@ def generate_matches_for_donation(donation_id: str) -> list[dict[str, Any]]:
 
     store.sync_matches()
     store.sync_notifications()
-    return sorted(matches, key=lambda item: item["compatibility_score"], reverse=True)
+    return rank_matches(matches)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -29,7 +31,12 @@ def reset_store():
 client = TestClient(app)
 
 
-def register_user(email: str, role: str = "FOOD_PROVIDER") -> dict:
+def register_user(
+    email: str,
+    role: str = "FOOD_PROVIDER",
+    latitude: float = 12.9716,
+    longitude: float = 77.5946,
+) -> dict:
     payload = {
         "email": email,
         "password": "StrongPass123",
@@ -37,8 +44,8 @@ def register_user(email: str, role: str = "FOOD_PROVIDER") -> dict:
         "organization_name": "Sample Org",
         "phone": "9876543210",
         "address": "123 Main Street",
-        "latitude": 12.9716,
-        "longitude": 77.5946,
+        "latitude": latitude,
+        "longitude": longitude,
     }
     response = client.post("/api/v1/auth/register", json=payload)
     assert response.status_code == 201, response.text
@@ -57,6 +64,8 @@ def test_register_and_login_flow():
     me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert me.status_code == 200
     assert me.json()["email"] == "provider@example.com"
+    assert me.json()["phone"] == "9876543210"
+    assert me.json()["address"] == "123 Main Street"
 
     login = client.post(
         "/api/v1/auth/login",
@@ -84,8 +93,8 @@ def test_donation_match_and_reservation_flow():
         "food_type": "PACKAGED_GROCERY",
         "perishable": False,
         "quantity_meals": 40,
-        "prepared_at": "2026-10-12T08:00:00",
-        "expiry_time": "2026-10-12T18:00:00",
+        "prepared_at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+        "expiry_time": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
         "pickup_address": "123 Market Road",
         "latitude": 12.9716,
         "longitude": 77.5946,
@@ -138,8 +147,8 @@ def test_impact_summary_endpoint():
             "food_type": "PRODUCE_RAW",
             "perishable": True,
             "quantity_meals": 20,
-            "prepared_at": "2026-10-12T08:00:00",
-            "expiry_time": "2026-10-12T18:00:00",
+            "prepared_at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+            "expiry_time": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
             "pickup_address": "456 Green Lane",
             "latitude": 12.9716,
             "longitude": 77.5946,
@@ -153,3 +162,41 @@ def test_impact_summary_endpoint():
     payload = summary.json()
     assert payload["total_completed_donations"] >= 0
     assert payload["total_meals_rescued"] >= 0
+
+
+def test_new_recipient_profile_and_matches_use_signup_location_and_expiry_urgency():
+    provider = register_user("provider@example.com", role="FOOD_PROVIDER")
+    near_recipient = register_user("near@example.com", role="RECIPIENT", latitude=12.9720, longitude=77.5950)
+    far_recipient = register_user("far@example.com", role="RECIPIENT", latitude=12.9900, longitude=77.5900)
+
+    near_user = store.users[near_recipient["user"]["id"]]
+    far_user = store.users[far_recipient["user"]["id"]]
+
+    assert near_user["id"] in store.recipient_profiles
+    assert far_user["id"] in store.recipient_profiles
+
+    donation_response = client.post(
+        "/api/v1/donations",
+        json={
+            "title": "Urgent meal packs",
+            "food_type": "PACKAGED_GROCERY",
+            "perishable": False,
+            "quantity_meals": 30,
+            "prepared_at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+            "expiry_time": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+            "pickup_address": "123 Market Road",
+            "latitude": 12.9716,
+            "longitude": 77.5946,
+        },
+        headers={"Authorization": f"Bearer {provider['token']}"},
+    )
+    assert donation_response.status_code == 201, donation_response.text
+
+    matches_response = client.get(
+        f"/api/v1/donations/{donation_response.json()['id']}/matches",
+        headers={"Authorization": f"Bearer {provider['token']}"},
+    )
+    assert matches_response.status_code == 200, matches_response.text
+    matches = matches_response.json()
+    assert [match["recipient_id"] for match in matches] == [near_user["id"], far_user["id"]]
+    assert all(match["matched_factors"]["urgency_score"] == 1.0 for match in matches)

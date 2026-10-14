@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import PasswordInput from './PasswordInput';
 import { useDemo } from '@/lib/demo-context';
-import { Loader2, AlertCircle, Store, Building2, ShieldCheck } from 'lucide-react';
+import { Loader2, AlertCircle, Store, Building2, ShieldCheck, MapPin } from 'lucide-react';
 
 export default function RegisterForm() {
   const { register } = useDemo();
@@ -13,6 +13,10 @@ export default function RegisterForm() {
     password: '',
     confirmPassword: '',
     role: 'FOOD_PROVIDER' as 'FOOD_PROVIDER' | 'RECIPIENT',
+    phone: '',
+    address: '',
+    latitude: '',
+    longitude: '',
   });
 
   const [errors, setErrors] = useState<{
@@ -21,9 +25,16 @@ export default function RegisterForm() {
     password?: string;
     confirmPassword?: string;
     role?: string;
+    phone?: string;
+    address?: string;
+    latitude?: string;
+    longitude?: string;
   }>({});
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [locationError, setLocationError] = useState('');
+  const [isLocating, setIsLocating] = useState(false);
 
   const validate = () => {
     const newErrors: typeof errors = {};
@@ -56,20 +67,75 @@ export default function RegisterForm() {
       newErrors.role = 'Please select your organization role.';
     }
 
+    if (formData.phone.trim().length < 8 || formData.phone.trim().length > 32) {
+      newErrors.phone = 'Enter a phone number between 8 and 32 characters.';
+    }
+
+    if (formData.address.trim().length < 5 || formData.address.trim().length > 500) {
+      newErrors.address = 'Enter an address between 5 and 500 characters.';
+    }
+
+    const latitude = Number(formData.latitude);
+    const longitude = Number(formData.longitude);
+    if (!formData.latitude || !Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+      newErrors.latitude = 'Enter a latitude between -90 and 90, or use your current location.';
+    }
+    if (!formData.longitude || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+      newErrors.longitude = 'Enter a longitude between -180 and 180, or use your current location.';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Location access is not supported by this browser. Enter coordinates manually.');
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationError('');
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setFormData((current) => ({
+          ...current,
+          latitude: coords.latitude.toFixed(6),
+          longitude: coords.longitude.toFixed(6),
+        }));
+        setErrors((current) => ({ ...current, latitude: undefined, longitude: undefined }));
+        setIsLocating(false);
+      },
+      () => {
+        setLocationError('Could not get your location. Allow location access or enter coordinates manually.');
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    setFormError('');
     if (!validate()) {
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await register(formData.fullName, formData.email, formData.password, formData.role);
+      await register({
+        email: formData.email.trim(),
+        password: formData.password,
+        role: formData.role,
+        organization_name: formData.fullName.trim(),
+        phone: formData.phone.trim(),
+        address: formData.address.trim(),
+        latitude: Number(formData.latitude),
+        longitude: Number(formData.longitude),
+      });
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Could not create your account. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -77,6 +143,13 @@ export default function RegisterForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      {formError && (
+        <p className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{formError}</span>
+        </p>
+      )}
+
       {/* Role Selection (Radio Cards) */}
       <div className="space-y-1.5">
         <label className="block text-xs font-semibold text-slate-700">
@@ -209,6 +282,127 @@ export default function RegisterForm() {
             <span>{errors.email}</span>
           </p>
         )}
+      </div>
+
+      <div className="space-y-1.5">
+        <label htmlFor="phone" className="block text-xs font-semibold text-slate-700">
+          Phone Number <span className="text-emerald-700" aria-hidden="true">*</span>
+        </label>
+        <input
+          id="phone"
+          name="phone"
+          type="tel"
+          autoComplete="tel"
+          value={formData.phone}
+          onChange={(e) => {
+            setFormData({ ...formData, phone: e.target.value });
+            if (errors.phone) setErrors({ ...errors, phone: undefined });
+          }}
+          disabled={isSubmitting}
+          placeholder="e.g. +91 98765 43210"
+          aria-invalid={Boolean(errors.phone)}
+          className={`block w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-50 disabled:text-slate-500 ${
+            errors.phone
+              ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20'
+              : 'border-slate-300 focus:border-emerald-500 focus:ring-emerald-500/20'
+          }`}
+        />
+        {errors.phone && <p className="text-xs text-red-600" role="alert">{errors.phone}</p>}
+      </div>
+
+      <div className="space-y-1.5">
+        <label htmlFor="address" className="block text-xs font-semibold text-slate-700">
+          Organization Address <span className="text-emerald-700" aria-hidden="true">*</span>
+        </label>
+        <textarea
+          id="address"
+          name="address"
+          autoComplete="street-address"
+          value={formData.address}
+          onChange={(e) => {
+            setFormData({ ...formData, address: e.target.value });
+            if (errors.address) setErrors({ ...errors, address: undefined });
+          }}
+          disabled={isSubmitting}
+          placeholder="Street, city, state, and postal code"
+          rows={2}
+          aria-invalid={Boolean(errors.address)}
+          className={`block w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-50 disabled:text-slate-500 ${
+            errors.address
+              ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20'
+              : 'border-slate-300 focus:border-emerald-500 focus:ring-emerald-500/20'
+          }`}
+        />
+        {errors.address && <p className="text-xs text-red-600" role="alert">{errors.address}</p>}
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-slate-700">Location for distance matching</p>
+            <p className="text-[11px] text-slate-500">
+              Matching uses these coordinates to find nearby food donations. Use your organization&apos;s location.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={useCurrentLocation}
+            disabled={isSubmitting || isLocating}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-emerald-700 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 disabled:opacity-60"
+          >
+            {isLocating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MapPin className="h-3.5 w-3.5" />}
+            Use current location
+          </button>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor="latitude" className="mb-1 block text-xs font-medium text-slate-600">
+              Latitude <span className="text-emerald-700" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="latitude"
+              name="latitude"
+              type="number"
+              min="-90"
+              max="90"
+              step="any"
+              value={formData.latitude}
+              onChange={(e) => {
+                setFormData({ ...formData, latitude: e.target.value });
+                if (errors.latitude) setErrors({ ...errors, latitude: undefined });
+              }}
+              disabled={isSubmitting}
+              placeholder="e.g. 17.6599"
+              aria-invalid={Boolean(errors.latitude)}
+              className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-100"
+            />
+            {errors.latitude && <p className="mt-1 text-xs text-red-600" role="alert">{errors.latitude}</p>}
+          </div>
+          <div>
+            <label htmlFor="longitude" className="mb-1 block text-xs font-medium text-slate-600">
+              Longitude <span className="text-emerald-700" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="longitude"
+              name="longitude"
+              type="number"
+              min="-180"
+              max="180"
+              step="any"
+              value={formData.longitude}
+              onChange={(e) => {
+                setFormData({ ...formData, longitude: e.target.value });
+                if (errors.longitude) setErrors({ ...errors, longitude: undefined });
+              }}
+              disabled={isSubmitting}
+              placeholder="e.g. 75.9064"
+              aria-invalid={Boolean(errors.longitude)}
+              className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-100"
+            />
+            {errors.longitude && <p className="mt-1 text-xs text-red-600" role="alert">{errors.longitude}</p>}
+          </div>
+        </div>
+        {locationError && <p className="text-xs text-red-600" role="alert">{locationError}</p>}
       </div>
 
       {/* Password Inputs in Grid */}
