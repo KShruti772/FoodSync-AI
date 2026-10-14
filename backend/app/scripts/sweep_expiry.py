@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import sys
 from datetime import datetime, timezone
 from typing import Any, Sequence
 
