@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-MatchStatus = Literal["PROPOSED", "NOTIFIED", "ACCEPTED", "REJECTED", "EXPIRED"]
+MatchStatus = Literal["PROPOSED", "NOTIFIED", "ACCEPTED", "REJECTED", "EXPIRED", "COMPLETED"]
 
 
 class MatchResponse(BaseModel):

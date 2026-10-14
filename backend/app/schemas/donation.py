@@ -40,3 +40,8 @@ class DonationResponse(BaseModel):
     status: DonationStatus
     created_at: datetime
     updated_at: datetime
+
+
+class DonationCompleteRequest(BaseModel):
+    confirmed_quantity_meals: int | None = Field(default=None, gt=0)
+    notes: str | None = None

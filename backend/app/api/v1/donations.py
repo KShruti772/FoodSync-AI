@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.security import get_current_active_user
-from app.schemas.donation import DonationCreate, DonationResponse
+from app.schemas.donation import DonationCompleteRequest, DonationCreate, DonationResponse
 from app.services.donation_service import DonationService
 
 router = APIRouter(prefix="/donations", tags=["Donations"])
@@ -24,15 +24,15 @@ def create_donation(payload: DonationCreate, current_user: dict = Depends(get_cu
 
 @router.get("", response_model=list[DonationResponse])
 def list_donations(current_user: dict = Depends(get_current_active_user)):
-    _ = current_user
-    return [DonationResponse.model_validate(item) for item in DonationService.list_donations()]
+    return [DonationResponse.model_validate(item) for item in DonationService.list_donations(current_user)]
 
 
 @router.get("/{donation_id}", response_model=DonationResponse)
 def get_donation(donation_id: str, current_user: dict = Depends(get_current_active_user)):
-    _ = current_user
     try:
-        donation = DonationService.get_donation(donation_id)
+        donation = DonationService.get_donation(donation_id, current_user)
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"success": False, "error": {"code": "FORBIDDEN", "message": str(exc), "details": []}}) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"success": False, "error": {"code": "NOT_FOUND", "message": str(exc), "details": []}}) from exc
     return DonationResponse.model_validate(donation)
@@ -42,15 +42,47 @@ def get_donation(donation_id: str, current_user: dict = Depends(get_current_acti
 def cancel_donation(donation_id: str, current_user: dict = Depends(get_current_active_user)):
     try:
         donation = DonationService.cancel_donation(donation_id, current_user)
-    except ValueError as exc:
+    except PermissionError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"success": False, "error": {"code": "FORBIDDEN", "message": str(exc), "details": []}}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"success": False, "error": {"code": "CANNOT_CANCEL", "message": str(exc), "details": []}}) from exc
     return {"success": True, "message": "Donation cancelled", "data": donation}
 
 
 @router.post("/{donation_id}/complete")
-def complete_donation(donation_id: str, current_user: dict = Depends(get_current_active_user)):
+def complete_donation(
+    donation_id: str,
+    payload: DonationCompleteRequest | None = None,
+    current_user: dict = Depends(get_current_active_user),
+):
     try:
-        donation = DonationService.complete_donation(donation_id, current_user)
+        confirmed_meals = payload.confirmed_quantity_meals if payload else None
+        notes = payload.notes if payload else None
+        result = DonationService.complete_donation(
+            donation_id,
+            current_user,
+            confirmed_quantity_meals=confirmed_meals,
+            notes=notes,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"success": False, "error": {"code": "FORBIDDEN", "message": str(exc), "details": []}}) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"success": False, "error": {"code": "INVALID_STATE", "message": str(exc), "details": []}}) from exc
-    return {"success": True, "message": "Donation completed", "data": donation}
+    donation = result["donation"]
+    impact = result["impact"]
+    return {
+        "success": True,
+        "message": "Donation completed and impact logged",
+        "data": {
+            "donation_id": donation["id"],
+            "status": donation["status"],
+            "donation": donation,
+            "impact": {
+                "id": impact["id"],
+                "meals_served": impact["meals_rescued"],
+                "meals_rescued": impact["meals_rescued"],
+                "food_weight_kg": impact["food_weight_kg"],
+                "co2_savings_kg": impact["co2_savings_kg"],
+            },
+        },
+    }

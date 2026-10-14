@@ -17,11 +17,12 @@ import {
   Store,
   ChevronDown,
   Sparkles,
+  Settings,
 } from 'lucide-react';
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { user, logout, switchRole, unreadCount } = useDemo();
+  const { user, logout, switchRole, unreadCount, isLiveBackend } = useDemo();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -63,6 +64,7 @@ export default function Navbar() {
   const recipientLinks: NavItem[] = [
     { name: 'Dashboard', href: '/dashboard' },
     { name: 'Available Food', href: '/matches' },
+    { name: 'Intake Settings', href: '/settings' },
     { name: 'Notifications', href: '/notifications', badge: unreadCount },
     { name: 'Impact', href: '/impact' },
   ];
@@ -91,11 +93,11 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* Demo Mode Badge */}
+          {/* Connection Status Badge */}
           {user && (
-            <span className="hidden lg:inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800 border border-emerald-200">
-              <Sparkles className="h-3 w-3 text-emerald-600" />
-              Demo Mode
+            <span className="hidden lg:inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800 border border-emerald-200">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              Live Backend
             </span>
           )}
         </div>
@@ -199,20 +201,6 @@ export default function Navbar() {
                     </div>
 
                     <div className="py-1">
-                      {/* Role Quick Switcher for Demo */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          switchRole();
-                          setProfileDropdownOpen(false);
-                        }}
-                        className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 transition-colors text-left"
-                      >
-                        <Repeat className="h-3.5 w-3.5 text-emerald-600" />
-                        <span>
-                          Switch to {user.role === 'FOOD_PROVIDER' ? 'Recipient Org' : 'Food Provider'} (Demo)
-                        </span>
-                      </button>
 
                       <Link
                         href="/notifications"
@@ -229,6 +217,17 @@ export default function Navbar() {
                           </span>
                         )}
                       </Link>
+
+                      {user.role === 'RECIPIENT' && (
+                        <Link
+                          href="/settings"
+                          onClick={() => setProfileDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <Settings className="h-3.5 w-3.5 text-teal-600" />
+                          <span>Intake Settings</span>
+                        </Link>
+                      )}
                     </div>
 
                     <div className="border-t border-slate-100 pt-1">
@@ -301,17 +300,6 @@ export default function Navbar() {
                 <p className="text-xs font-bold text-slate-900">{user.organization}</p>
                 <p className="text-[11px] text-slate-500">{user.name}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  switchRole();
-                  setMobileMenuOpen(false);
-                }}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200"
-              >
-                <Repeat className="h-3 w-3" />
-                Switch Role
-              </button>
             </div>
           )}
 
@@ -347,7 +335,7 @@ export default function Navbar() {
                 }}
                 className="w-full text-center text-sm font-semibold text-red-600 hover:bg-red-50 py-2.5 rounded-lg border border-red-200 transition-colors"
               >
-                Sign Out (Demo Session)
+                Sign Out
               </button>
             ) : (
               <>

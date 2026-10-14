@@ -19,13 +19,19 @@ import {
   Building2,
   Scale,
   Phone,
+  Loader2,
 } from 'lucide-react';
+import PickupMapPreview from '@/components/map/PickupMapPreview';
 
 export default function DonationDetailPage() {
   const params = useParams();
   const donationId = params?.id as string;
   const { donations, matches, completePickup } = useDemo();
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [confirmedMeals, setConfirmedMeals] = useState<number>(0);
+  const [handoverNotes, setHandoverNotes] = useState<string>('Handover confirmed with verified recipient.');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const donation = donations.find((d) => d.id === donationId);
   const donationMatches = matches.filter((m) => m.donationId === donationId);
@@ -97,7 +103,10 @@ export default function DonationDetailPage() {
                 {isReserved && (
                   <button
                     type="button"
-                    onClick={() => setShowCompleteModal(true)}
+                    onClick={() => {
+                      setConfirmedMeals(donation.quantity);
+                      setShowCompleteModal(true);
+                    }}
                     className="inline-flex items-center gap-2 bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors shrink-0"
                   >
                     <CheckCircle2 className="h-4 w-4" />
@@ -229,6 +238,15 @@ export default function DonationDetailPage() {
                   )}
                 </div>
 
+                {/* Map Preview */}
+                <PickupMapPreview
+                  pickupLat={donation.latitude}
+                  pickupLng={donation.longitude}
+                  pickupAddress={donation.exactAddress}
+                  isUnlocked={isReserved || isCompleted}
+                  approxAreaText={donation.approxLocation}
+                />
+
                 <div className="text-[11px] text-slate-400">
                   Compliance: FoodSync Privacy-by-Design Protocol v1.0
                 </div>
@@ -337,6 +355,7 @@ export default function DonationDetailPage() {
           </div>
 
           {/* Complete Pickup Modal */}
+          {/* Complete Pickup Modal */}
           {showCompleteModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
               <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
@@ -350,27 +369,87 @@ export default function DonationDetailPage() {
                   </div>
                 </div>
 
+                {errorMessage && (
+                  <div className="p-3 rounded-lg bg-red-50 text-red-700 text-xs font-medium">
+                    {errorMessage}
+                  </div>
+                )}
+
                 <p className="text-xs text-slate-600">
-                  Confirm that <strong>{donation.reservedRecipientName}</strong> has arrived and completed physical collection of the {donation.quantity} {donation.quantityUnit}.
+                  Confirm that <strong>{donation.reservedRecipientName || 'the assigned recipient'}</strong> has arrived and completed physical collection of the food.
                 </p>
 
-                <div className="flex items-center justify-end gap-2 pt-2">
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <label htmlFor="provider_confirmed_meals" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Confirmed Quantity (Meals)
+                    </label>
+                    <input
+                      id="provider_confirmed_meals"
+                      type="number"
+                      min="1"
+                      value={confirmedMeals}
+                      onChange={(e) => setConfirmedMeals(parseInt(e.target.value, 10) || 0)}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="provider_handover_notes" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Handover Notes
+                    </label>
+                    <textarea
+                      id="provider_handover_notes"
+                      rows={2}
+                      value={handoverNotes}
+                      onChange={(e) => setHandoverNotes(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      placeholder="e.g. Collected in insulated vehicle."
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setShowCompleteModal(false)}
+                    disabled={isProcessing}
                     className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      completePickup(donation.id);
-                      setShowCompleteModal(false);
+                    disabled={isProcessing}
+                    onClick={async () => {
+                      if (!confirmedMeals || confirmedMeals <= 0) {
+                        setErrorMessage('Confirmed meal quantity must be greater than 0.');
+                        return;
+                      }
+                      setIsProcessing(true);
+                      setErrorMessage(null);
+                      try {
+                        await completePickup(donation.id, {
+                          confirmedQuantityMeals: confirmedMeals,
+                          notes: handoverNotes.trim() || undefined,
+                        });
+                        setShowCompleteModal(false);
+                      } catch (err: any) {
+                        setErrorMessage(err?.message || 'Failed to complete handover.');
+                      } finally {
+                        setIsProcessing(false);
+                      }
                     }}
-                    className="px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg shadow-sm"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-sm"
                   >
-                    Confirm Handover
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Recording...</span>
+                      </>
+                    ) : (
+                      'Confirm Handover'
+                    )}
                   </button>
                 </div>
               </div>

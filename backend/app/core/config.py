@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     APP_NAME: str = "FoodSync AI API"
     DATABASE_URL: str = Field(
-        default="sqlite:///./foodsync.db",
+        default="postgresql://postgres:postgres@localhost:5433/foodsync_db",
         validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_DATABASE_URL"),
     )
     DB_ECHO: bool = False

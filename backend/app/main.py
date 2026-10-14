@@ -3,16 +3,19 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.config import settings
+from app.core.database import init_db
+
+# Initialize database tables and verify connectivity on startup
+init_db()
+
 from app.api.v1.auth import router as auth_router
 from app.api.v1.donations import router as donations_router
 from app.api.v1.impact import router as impact_router
 from app.api.v1.matches import router as matches_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.recipients import router as recipients_router
-from app.core.config import settings
-from app.core.database import init_db
 
-init_db()
 
 app = FastAPI(
     title="FoodSync AI API",
