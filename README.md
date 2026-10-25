@@ -91,3 +91,42 @@ FoodSync-AI/
 > [!IMPORTANT]
 > **Architecture is frozen; no blocking architectural decisions remain.**  
 > Ready for module implementation on feature branches.
+
+## 🐘 Local PostgreSQL Setup
+
+The backend uses PostgreSQL by default. Copy `.env.example` to `.env`, then start
+the local PostgreSQL service from the repository root:
+
+```powershell
+docker compose up -d db
+```
+
+Install backend dependencies and apply the schema migrations:
+
+```powershell
+Set-Location backend
+python -m pip install -r requirements.txt
+python -m alembic upgrade head
+python -m uvicorn app.main:app --reload
+```
+
+The API verifies its database connection on startup. Schema changes are managed
+with Alembic; application startup does not create or modify PostgreSQL tables.
+Tests use a separate temporary SQLite database by default. To run them against
+PostgreSQL, set `POSTGRES_TEST_DATABASE_URL` to a dedicated database whose name
+ends in `_test`, then apply the schema and run tests from `backend`:
+
+```powershell
+$env:DATABASE_URL = $env:POSTGRES_TEST_DATABASE_URL
+python -m alembic upgrade head
+python -m pytest tests
+```
+
+Accepted donations have a 30-minute collection window, capped by the food's
+expiry time. The API runs an in-process expiry poller every 10 seconds and also
+checks for overdue reservations on donation, recipient-match, accept, and
+complete requests. Expiry is transactionally recorded on the accepted match,
+the reservation is released only if it is still the active reservation, and
+the donor and former recipient receive notifications. Multiple API workers may
+run this poller safely; if all workers are stopped, the next relevant API
+request performs the overdue-release check.

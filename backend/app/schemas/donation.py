@@ -27,16 +27,22 @@ class DonationResponse(BaseModel):
 
     id: str
     provider_id: str
+    provider_org: str | None = None
+    provider_address: str | None = None
+    provider_phone: str | None = None
     title: str
     food_type: FoodType
     perishable: bool
     quantity_meals: int
     prepared_at: datetime
     expiry_time: datetime
-    pickup_address: str
-    latitude: float
-    longitude: float
+    pickup_address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
     special_instructions: str | None = None
     status: DonationStatus
+    reserved_recipient_id: str | None = None
+    reserved_recipient_name: str | None = None
+    reservation_deadline: datetime | None = None
     created_at: datetime
     updated_at: datetime

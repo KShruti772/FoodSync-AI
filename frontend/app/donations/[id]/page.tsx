@@ -105,6 +105,14 @@ export default function DonationDetailPage() {
                   </button>
                 )}
               </div>
+              {isReserved && (
+                <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900">
+                  <strong>Collection deadline:</strong>{' '}
+                  {donation.reservationDeadline
+                    ? new Date(donation.reservationDeadline).toLocaleString()
+                    : 'Deadline unavailable'}
+                </div>
+              )}
 
               {/* Lifecycle Progress Bar */}
               <div className="pt-4 border-t border-slate-100">

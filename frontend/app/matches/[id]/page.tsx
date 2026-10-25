@@ -1,12 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import Navbar from '@/components/navigation/Navbar';
 import Footer from '@/components/home/Footer';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { useDemo } from '@/lib/demo-context';
+import { apiGetDonation } from '@/lib/api';
+import { mapApiDonation } from '@/lib/api-mappers';
+import type { DemoDonation } from '@/lib/demo-data';
 import {
   Clock,
   MapPin,
@@ -31,9 +34,43 @@ export default function MatchDetailPage() {
   const matchId = params?.id as string;
   const { matches, donations, acceptMatch, rejectMatch } = useDemo();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [providerDetails, setProviderDetails] = useState<{
+    address: string | null;
+    phone: string | null;
+  } | null>(null);
+  const [providerDetailsError, setProviderDetailsError] = useState(false);
 
   const match = matches.find((m) => m.id === matchId);
-  const donation = match ? donations.find((d) => d.id === match.donationId) : null;
+  const demoDonation = match ? donations.find((d) => d.id === match.donationId) : null;
+  const [apiDonation, setApiDonation] = useState<DemoDonation | null>(null);
+
+  useEffect(() => {
+    setApiDonation(null);
+    setProviderDetails(null);
+    setProviderDetailsError(false);
+    if (!match || match.status !== 'ACCEPTED') return;
+    const token = localStorage.getItem('foodsync_backend_token');
+    if (!token) return;
+    let cancelled = false;
+    apiGetDonation(token, match.donationId)
+      .then((result) => {
+        if (cancelled) return;
+        const mapped = mapApiDonation(result);
+        setApiDonation(mapped);
+        setProviderDetails({
+          address: result.provider_address || null,
+          phone: result.provider_phone || null,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setProviderDetailsError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [match?.donationId, match?.status]);
+
+  const donation = apiDonation || demoDonation;
 
   if (!match || !donation) {
     return (
@@ -263,7 +300,13 @@ export default function MatchDetailPage() {
                       Exact Pickup Street Address:
                     </span>
                     <p className="text-sm font-bold text-slate-900">{donation.exactAddress}</p>
-                    <p className="text-[11px] text-slate-500">Solapur Central District • ~7 minutes drive</p>
+                    <p className="text-[11px] text-slate-500">
+                      Provider address: {providerDetails
+                        ? providerDetails.address || 'Address not available'
+                        : providerDetailsError
+                        ? 'Provider details could not be loaded'
+                        : donation.providerAddress || 'Address not available'}
+                    </p>
                   </div>
 
                   <div className="p-4 rounded-xl bg-white border border-emerald-200 space-y-1.5 shadow-2xs">
@@ -271,8 +314,14 @@ export default function MatchDetailPage() {
                       <Phone className="h-4 w-4 text-emerald-700" />
                       Donor Authorized Contact:
                     </span>
-                    <p className="text-sm font-bold text-slate-900">{donation.contactPerson}</p>
-                    <p className="text-xs font-mono text-emerald-800 font-semibold">{donation.contactPhone}</p>
+                    <p className="text-sm font-bold text-slate-900">{donation.providerOrg}</p>
+                    <p className="text-xs font-mono text-emerald-800 font-semibold">
+                      {providerDetails
+                        ? providerDetails.phone || 'Contact number not available'
+                        : providerDetailsError
+                        ? 'Provider details could not be loaded'
+                        : donation.providerPhone || 'Contact number not available'}
+                    </p>
                   </div>
 
                   <div className="sm:col-span-2 p-3.5 rounded-xl bg-white border border-emerald-200 text-[11px] text-slate-700">

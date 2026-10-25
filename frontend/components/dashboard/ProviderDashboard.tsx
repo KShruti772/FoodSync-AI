@@ -206,7 +206,14 @@ export default function ProviderDashboard() {
                             Reserved by: <strong className="font-bold">{donation.reservedRecipientName}</strong>
                           </span>
                         </div>
-                        <span className="text-[11px] text-teal-700">Pickup address unlocked to recipient</span>
+                        <span className="text-right text-[11px] text-teal-700">
+                          Collection by:{' '}
+                          <strong>
+                            {donation.reservationDeadline
+                              ? new Date(donation.reservationDeadline).toLocaleString()
+                              : 'Deadline unavailable'}
+                          </strong>
+                        </span>
                       </div>
                     )}
                   </div>

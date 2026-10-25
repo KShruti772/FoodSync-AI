@@ -12,6 +12,8 @@ export interface DemoDonation {
   id: string;
   providerId: string;
   providerOrg: string;
+  providerAddress?: string | null;
+  providerPhone?: string | null;
   title: string;
   foodType: string;
   quantity: number;
@@ -30,6 +32,7 @@ export interface DemoDonation {
   matchedCount: number;
   reservedRecipientId?: string;
   reservedRecipientName?: string;
+  reservationDeadline?: string | null;
 }
 
 export interface DemoMatch {
@@ -43,7 +46,9 @@ export interface DemoMatch {
   urgencyScore: number;
   capacityScore: number;
   requirementScore: number;
-  status: 'PROPOSED' | 'ACCEPTED' | 'REJECTED';
+  status: 'PROPOSED' | 'NOTIFIED' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'COMPLETED';
+  pickupDeadline?: string | null;
+  reservationOutcome?: string | null;
   proposedAt: string;
   whyBreakdown: {
     distanceText: string;

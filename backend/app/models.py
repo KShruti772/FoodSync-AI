@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -43,6 +43,10 @@ class DonationORM(Base):
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
     special_instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="AVAILABLE", nullable=False)
+    reserved_recipient_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    reservation_deadline: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -64,6 +68,7 @@ class RecipientProfileORM(Base):
 
 class MatchORM(Base):
     __tablename__ = "matches"
+    __table_args__ = (Index("ix_matches_status_pickup_deadline", "status", "pickup_deadline"),)
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     donation_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
@@ -72,6 +77,9 @@ class MatchORM(Base):
     distance_km: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     matched_factors: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="PROPOSED", nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    pickup_deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reservation_outcome: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

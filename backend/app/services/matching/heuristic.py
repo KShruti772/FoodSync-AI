@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from app.core.store import store
 from app.utils.geo import haversine_km
@@ -69,7 +70,7 @@ def _score_requirement(recipient: dict[str, Any], donation: dict[str, Any]) -> f
 
 def generate_matches_for_donation(donation_id: str) -> list[dict[str, Any]]:
     donation = store.donations.get(donation_id)
-    if not donation:
+    if not donation or donation["status"] != "AVAILABLE":
         return []
 
     matches: list[dict[str, Any]] = []
@@ -79,7 +80,9 @@ def generate_matches_for_donation(donation_id: str) -> list[dict[str, Any]]:
         if recipient_user.get("latitude") is None or recipient_user.get("longitude") is None:
             continue
         if any(
-            match["donation_id"] == donation_id and match["recipient_id"] == recipient_user["id"]
+            match["donation_id"] == donation_id
+            and match["recipient_id"] == recipient_user["id"]
+            and match["status"] in {"PROPOSED", "NOTIFIED", "ACCEPTED"}
             for match in store.matches.values()
         ):
             continue
@@ -112,7 +115,7 @@ def generate_matches_for_donation(donation_id: str) -> list[dict[str, Any]]:
         )
 
         match_record = {
-            "id": f"match_{len(store.matches) + 1}_{donation_id}",
+            "id": f"match_{uuid4().hex}",
             "donation_id": donation_id,
             "recipient_id": recipient_user["id"],
             "compatibility_score": total_score,
@@ -131,7 +134,7 @@ def generate_matches_for_donation(donation_id: str) -> list[dict[str, Any]]:
         matches.append(match_record)
 
         notification = {
-            "id": f"notif_{len(store.notifications) + 1}_{recipient_user['id']}",
+            "id": f"notif_{uuid4().hex}",
             "user_id": recipient_user["id"],
             "match_id": match_record["id"],
             "title": "New donation match available",

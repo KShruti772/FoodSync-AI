@@ -176,8 +176,9 @@ flowchart TD
   2. Match exists in `PROPOSED` or `NOTIFIED` status.
   3. Associated donation is still in `AVAILABLE` status and unexpired.
   4. Competing reservation does not already exist.
-- Performs atomic database state transition to `RESERVED` and sets competing matches to `EXPIRED`.
+- Performs a row-locked, conditional database state transition to `RESERVED`, recording a 30-minute collection deadline capped by food expiry.
 - Unlocks exact pickup details and donor contact info to the authorized accepted recipient.
+- Checks overdue reservations every 10 seconds and on relevant API requests. A timeout releases only the still-current reservation, retains the expired match as audit history, notifies the donor and former recipient, and makes a still-valid donation available to other eligible recipients.
 
 ### 6. Notification Service
 - Creates database records in `notifications` table on match generation, reservation, and completion.
@@ -196,6 +197,7 @@ stateDiagram-v2
     [*] --> AVAILABLE : Food Provider posts donation\n(Synchronous matching runs)
     
     AVAILABLE --> RESERVED : Matched Recipient accepts match\n(POST /api/v1/matches/:id/accept)
+    RESERVED --> AVAILABLE : Collection deadline passes while food remains valid
     AVAILABLE --> CANCELLED : Food Provider cancels listing\n(POST /api/v1/donations/:id/cancel)
     AVAILABLE --> EXPIRED : Current time exceeds expiry_time
     

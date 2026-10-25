@@ -317,11 +317,12 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const acceptMatch = (matchId: string) => {
     const targetMatch = matches.find((m) => m.id === matchId);
     if (!targetMatch) return;
+    const pickupDeadline = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
     // 1. Update Match status to ACCEPTED
     const updatedMatches = matches.map((m) => {
       if (m.id === matchId) {
-        return { ...m, status: 'ACCEPTED' as const };
+        return { ...m, status: 'ACCEPTED' as const, pickupDeadline };
       }
       return m;
     });
@@ -334,6 +335,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
           status: 'RESERVED' as const,
           reservedRecipientId: targetMatch.recipientId,
           reservedRecipientName: targetMatch.recipientName,
+          reservationDeadline: pickupDeadline,
         };
       }
       return d;
@@ -355,7 +357,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       id: `notif-prov-${Date.now().toString().slice(-4)}`,
       userId: 'usr-prov-001',
       title: 'Recipient Accepted Your Surplus Food',
-      message: `${targetMatch.recipientName} accepted donation #${targetMatch.donationId}. Status transitioned to RESERVED. Coordinate pickup.`,
+      message: `${targetMatch.recipientName} accepted donation #${targetMatch.donationId}. Collect it by ${new Date(pickupDeadline).toLocaleString()}.`,
       timestamp: 'Just now',
       read: false,
       type: 'MATCH_ACCEPTED',
@@ -389,6 +391,11 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       }
       return d;
     });
+    const updatedMatches = matches.map((match) =>
+      match.donationId === donationId && match.status === 'ACCEPTED'
+        ? { ...match, status: 'COMPLETED' as const, reservationOutcome: 'COLLECTED' }
+        : match
+    );
 
     // Update impact metrics
     const updatedImpact: DemoImpactMetrics = {
@@ -410,6 +417,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     };
 
     saveDonations(updatedDonations);
+    saveMatches(updatedMatches);
     saveImpact(updatedImpact);
     saveNotifications([completionNotif, ...notifications]);
   };

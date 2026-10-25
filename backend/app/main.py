@@ -1,7 +1,17 @@
 """FoodSync AI FastAPI application entry point."""
 
+import asyncio
+import logging
+from contextlib import asynccontextmanager, suppress
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from app.core.config import settings
+from app.core.database import init_db
+
+# Verify PostgreSQL availability before services load their persisted state.
+init_db()
 
 from app.api.v1.auth import router as auth_router
 from app.api.v1.donations import router as donations_router
@@ -9,15 +19,35 @@ from app.api.v1.impact import router as impact_router
 from app.api.v1.matches import router as matches_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.recipients import router as recipients_router
-from app.core.config import settings
-from app.core.database import init_db
+from app.services.reservation_service import ReservationService
 
-init_db()
+logger = logging.getLogger(__name__)
+
+
+async def _reservation_expiry_worker() -> None:
+    while True:
+        try:
+            await asyncio.to_thread(ReservationService.release_expired_reservations)
+        except Exception:
+            logger.exception("Failed to process expired food reservations")
+        await asyncio.sleep(10)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    task = asyncio.create_task(_reservation_expiry_worker())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
 
 app = FastAPI(
     title="FoodSync AI API",
     version="1.0.0",
     description="Real-Time Food Waste Redistribution Platform REST API",
+    lifespan=lifespan,
 )
 
 allowed_origins = [origin.strip() for origin in settings.ALLOWED_ORIGINS if origin.strip()]

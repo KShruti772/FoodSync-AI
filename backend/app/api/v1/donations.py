@@ -24,17 +24,21 @@ def create_donation(payload: DonationCreate, current_user: dict = Depends(get_cu
 
 @router.get("", response_model=list[DonationResponse])
 def list_donations(current_user: dict = Depends(get_current_active_user)):
-    _ = current_user
-    return [DonationResponse.model_validate(item) for item in DonationService.list_donations()]
+    try:
+        donations = DonationService.list_donations(current_user)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"success": False, "error": {"code": "FORBIDDEN", "message": str(exc), "details": []}}) from exc
+    return [DonationResponse.model_validate(item) for item in donations]
 
 
 @router.get("/{donation_id}", response_model=DonationResponse)
 def get_donation(donation_id: str, current_user: dict = Depends(get_current_active_user)):
-    _ = current_user
     try:
-        donation = DonationService.get_donation(donation_id)
+        donation = DonationService.get_donation(donation_id, current_user)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"success": False, "error": {"code": "NOT_FOUND", "message": str(exc), "details": []}}) from exc
+        error_status = status.HTTP_404_NOT_FOUND if str(exc) == "Donation not found" else status.HTTP_403_FORBIDDEN
+        error_code = "NOT_FOUND" if error_status == status.HTTP_404_NOT_FOUND else "FORBIDDEN"
+        raise HTTPException(status_code=error_status, detail={"success": False, "error": {"code": error_code, "message": str(exc), "details": []}}) from exc
     return DonationResponse.model_validate(donation)
 
 

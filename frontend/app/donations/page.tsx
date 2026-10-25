@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/navigation/Navbar';
 import Footer from '@/components/home/Footer';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { useDemo } from '@/lib/demo-context';
+import { apiCompleteDonation, apiGetDonations } from '@/lib/api';
+import { mapApiDonation } from '@/lib/api-mappers';
+import type { DemoDonation } from '@/lib/demo-data';
 import {
   PlusCircle,
   Clock,
@@ -18,9 +21,66 @@ import {
 } from 'lucide-react';
 
 export default function DonationsListPage() {
-  const { user, donations, completePickup } = useDemo();
+  const { user, donations: demoDonations, completePickup } = useDemo();
+  const [donations, setDonations] = useState<DemoDonation[]>(demoDonations);
+  const [liveBackend, setLiveBackend] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
   const [filter, setFilter] = useState<'ALL' | 'AVAILABLE' | 'RESERVED' | 'COMPLETED'>('ALL');
   const [confirmModalId, setConfirmModalId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('foodsync_backend_token');
+    if (!token) {
+      setLiveBackend(false);
+      setDonations(demoDonations);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLiveBackend(true);
+    setLoading(true);
+    apiGetDonations(token)
+      .then((items) => {
+        if (!cancelled) setDonations(items.map(mapApiDonation));
+      })
+      .catch((loadError: unknown) => {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : 'Unable to load your donations.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, demoDonations]);
+
+  const confirmPickup = async () => {
+    if (!confirmModalId) return;
+    setIsCompleting(true);
+    setError(null);
+    try {
+      if (liveBackend) {
+        const token = localStorage.getItem('foodsync_backend_token');
+        if (!token) throw new Error('Your session has expired. Please sign in again.');
+        await apiCompleteDonation(token, confirmModalId);
+        const refreshed = await apiGetDonations(token);
+        setDonations(refreshed.map(mapApiDonation));
+      } else {
+        completePickup(confirmModalId);
+      }
+      setConfirmModalId(null);
+    } catch (actionError: unknown) {
+      setError(actionError instanceof Error ? actionError.message : 'Unable to complete this pickup.');
+    } finally {
+      setIsCompleting(false);
+    }
+  };
 
   const filteredDonations = donations.filter((d) => {
     if (filter === 'ALL') return true;
@@ -36,6 +96,11 @@ export default function DonationsListPage() {
       <main className="flex-1 py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
         <ProtectedRoute>
           <div className="space-y-6">
+            {error && (
+              <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                {error}
+              </div>
+            )}
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs">
               <div>
@@ -76,7 +141,11 @@ export default function DonationsListPage() {
             </div>
 
             {/* Donations Grid */}
-            {filteredDonations.length === 0 ? (
+            {loading ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-600">
+                Loading your donations…
+              </div>
+            ) : filteredDonations.length === 0 ? (
               <div className="bg-white p-12 rounded-2xl border border-dashed border-slate-300 text-center">
                 <Utensils className="h-12 w-12 text-slate-400 mx-auto mb-3" />
                 <h2 className="text-sm font-bold text-slate-900">No donations found in this category</h2>
@@ -152,6 +221,12 @@ export default function DonationsListPage() {
                         {isReserved && (
                           <div className="p-2.5 rounded-lg bg-teal-50 border border-teal-200 text-[11px] text-teal-900">
                             <strong>Reserved By:</strong> {donation.reservedRecipientName}
+                            <p className="mt-1">
+                              <strong>Collection deadline:</strong>{' '}
+                              {donation.reservationDeadline
+                                ? new Date(donation.reservationDeadline).toLocaleString()
+                                : 'Deadline unavailable'}
+                            </p>
                           </div>
                         )}
                       </div>
@@ -210,13 +285,11 @@ export default function DonationsListPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      completePickup(confirmModalId);
-                      setConfirmModalId(null);
-                    }}
+                    onClick={() => void confirmPickup()}
+                    disabled={isCompleting}
                     className="px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg shadow-sm"
                   >
-                    Confirm Handover
+                    {isCompleting ? 'Completing…' : 'Confirm Handover'}
                   </button>
                 </div>
               </div>

@@ -123,6 +123,8 @@ class InMemoryStore:
             "longitude": row.longitude,
             "special_instructions": row.special_instructions,
             "status": row.status,
+            "reserved_recipient_id": row.reserved_recipient_id,
+            "reservation_deadline": row.reservation_deadline,
             "created_at": row.created_at,
             "updated_at": row.updated_at,
         }
@@ -143,6 +145,8 @@ class InMemoryStore:
             "longitude": donation["longitude"],
             "special_instructions": donation.get("special_instructions"),
             "status": donation["status"],
+            "reserved_recipient_id": donation.get("reserved_recipient_id"),
+            "reservation_deadline": donation.get("reservation_deadline"),
             "created_at": donation.get("created_at"),
             "updated_at": donation.get("updated_at"),
         }
@@ -187,6 +191,9 @@ class InMemoryStore:
             "distance_km": row.distance_km,
             "matched_factors": json.loads(row.matched_factors) if row.matched_factors else None,
             "status": row.status,
+            "accepted_at": row.accepted_at,
+            "pickup_deadline": row.pickup_deadline,
+            "reservation_outcome": row.reservation_outcome,
             "created_at": row.created_at,
             "updated_at": row.updated_at,
         }
@@ -201,6 +208,9 @@ class InMemoryStore:
             "distance_km": match.get("distance_km", 0.0),
             "matched_factors": json.dumps(match.get("matched_factors")) if match.get("matched_factors") is not None else None,
             "status": match["status"],
+            "accepted_at": match.get("accepted_at"),
+            "pickup_deadline": match.get("pickup_deadline"),
+            "reservation_outcome": match.get("reservation_outcome"),
             "created_at": match.get("created_at"),
             "updated_at": match.get("updated_at"),
         }

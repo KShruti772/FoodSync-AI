@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-MatchStatus = Literal["PROPOSED", "NOTIFIED", "ACCEPTED", "REJECTED", "EXPIRED"]
+MatchStatus = Literal["PROPOSED", "NOTIFIED", "ACCEPTED", "REJECTED", "EXPIRED", "COMPLETED"]
 
 
 class MatchResponse(BaseModel):
@@ -18,5 +18,8 @@ class MatchResponse(BaseModel):
     distance_km: float = Field(ge=0.0)
     matched_factors: dict | None = None
     status: MatchStatus
+    accepted_at: datetime | None = None
+    pickup_deadline: datetime | None = None
+    reservation_outcome: str | None = None
     created_at: datetime
     updated_at: datetime

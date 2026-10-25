@@ -28,11 +28,12 @@
      - An Administrator.
 5. **Donation State Machine**:
    $$\text{AVAILABLE} \longrightarrow \text{RESERVED} \longrightarrow \text{COMPLETED}$$
+   $$\text{RESERVED} \longrightarrow \text{AVAILABLE} \quad \text{(collection deadline passes while food is still valid)}$$
    $$\text{AVAILABLE} \longrightarrow \text{CANCELLED}$$
    $$\text{AVAILABLE} \longrightarrow \text{EXPIRED}$$
-   $$\text{RESERVED} \longrightarrow \text{CANCELLED}$$
-   $$\text{RESERVED} \longrightarrow \text{EXPIRED}$$
    - Direct arbitrary client mutations of the `status` field are strictly forbidden. Transitions occur only through validated lifecycle endpoints (`/cancel`, `/complete`, `/matches/{id}/accept`).
+   - Accepted reservations have a 30-minute collection window, capped by food expiry. The accepted match retains the accepting organization, timestamp, deadline, and timeout outcome as audit history.
+   - An in-process poller runs every 10 seconds; donation and recipient-match requests also process overdue reservations. The donor and former recipient receive in-app expiry notifications.
 6. **Synchronous Matching Invariant**:
    - The deterministic matching engine runs **synchronously** inside the `POST /api/v1/donations` request cycle.
    - `GET /api/v1/donations/{id}/matches` is a read-only query that retrieves already-generated match records. It causes **zero side effects**.
@@ -49,14 +50,14 @@
 | `/api/v1/auth/me` | `GET` | Authenticated (Any) | ✅ Yes | Get current user session & profile info |
 | **Donations** | | | | |
 | `/api/v1/donations` | `POST` | `FOOD_PROVIDER` | ✅ Yes | Create donation & trigger synchronous matching |
-| `/api/v1/donations` | `GET` | Authenticated (Any) | ✅ Yes | List active donations (masked addresses) |
-| `/api/v1/donations/{id}` | `GET` | Authenticated (Any) | ✅ Yes | Get single donation details (address masked if unauthorized) |
+| `/api/v1/donations` | `GET` | Authenticated | ✅ Yes | Providers see their donations; recipients see all available donations and their own active reservation with private fields masked until acceptance |
+| `/api/v1/donations/{id}` | `GET` | Owner, accepted recipient, `ADMIN` | ✅ Yes | Get donation details with ownership authorization |
 | `/api/v1/donations/{id}/cancel` | `POST` | `FOOD_PROVIDER` (Owner), `ADMIN` | ✅ Yes | Cancel an `AVAILABLE` donation |
 | `/api/v1/donations/{id}/complete`| `POST` | `FOOD_PROVIDER` (Owner), Matched `RECIPIENT`, `ADMIN` | ✅ Yes | Confirm pickup completion (`RESERVED` $\rightarrow$ `COMPLETED`) |
 | **Recipients** | | | | |
 | `/api/v1/recipients/profile` | `GET` | `RECIPIENT` | ✅ Yes | Get recipient capacity & preference profile |
 | `/api/v1/recipients/profile` | `PUT` | `RECIPIENT` | ✅ Yes | Update recipient capacity & preferences |
-| `/api/v1/recipients/matches` | `GET` | `RECIPIENT` | ✅ Yes | List candidate matches proposed to this recipient |
+| `/api/v1/recipients/matches` | `GET` | `RECIPIENT` | ✅ Yes | List candidate matches and the recipient's active accepted reservation |
 | **Matches** | | | | |
 | `/api/v1/donations/{id}/matches`| `GET` | `FOOD_PROVIDER` (Owner), `ADMIN` | ✅ Yes | Read-only fetch of computed matches for a donation |
 | `/api/v1/matches/{match_id}/accept` | `POST` | `RECIPIENT` (Assigned Candidate) | ✅ Yes | Atomically accept match & reserve donation |
@@ -461,10 +462,12 @@ class DonationCompleteRequest(BaseModel):
   1. Verifies match exists and is in `PROPOSED` or `NOTIFIED` status.
   2. Verifies associated donation is still in `AVAILABLE` status.
   3. Updates match status to `ACCEPTED`.
-  4. Updates donation status to `RESERVED`.
-  5. Updates all competing matches for this donation to `EXPIRED` to prevent race conditions or competing reservations.
-  6. Emits an in-app notification to the Food Provider.
-  7. Returns full pickup address and donor contact information.
+  4. Records the recipient, acceptance time, and collection deadline on the match and donation.
+  5. Uses a row lock and conditional status update so only one recipient can reserve the donation.
+  6. Emits in-app notifications to the Food Provider and accepting Recipient.
+  7. Returns the accepted match and deadline; pickup details are available only through an authorized donation-detail request.
+
+When an uncollected reservation expires, a transaction releases it only if it is still the active reservation. The match is retained with status `EXPIRED` and outcome `TIMED_OUT`; if the food itself remains valid, the donation returns to `AVAILABLE` and eligible recipients can accept a new match record. The original recipient cannot complete an expired reservation.
 
 **Request Schema (Pydantic)**:
 ```python

@@ -5,7 +5,14 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-NotificationType = Literal["MATCH_ALERT", "RESERVATION_CONFIRMATION", "EXPIRY_WARNING", "SYSTEM"]
+NotificationType = Literal[
+    "MATCH_ALERT",
+    "RESERVATION_CONFIRMATION",
+    "RESERVATION_EXPIRED",
+    "DONATION_COMPLETED",
+    "EXPIRY_WARNING",
+    "SYSTEM",
+]
 
 
 class NotificationResponse(BaseModel):
