@@ -16,7 +16,9 @@ def list_donation_matches(donation_id: str, current_user: dict = Depends(get_cur
     donation = store.donations.get(donation_id)
     if donation is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"success": False, "error": {"code": "NOT_FOUND", "message": "Donation not found", "details": []}})
-    if current_user["role"] not in {"FOOD_PROVIDER", "ADMIN"} and donation["provider_id"] != current_user["id"]:
+    if current_user["role"] == "FOOD_PROVIDER" and donation["provider_id"] != current_user["id"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"success": False, "error": {"code": "FORBIDDEN", "message": "Not allowed to read these matches", "details": []}})
+    if current_user["role"] not in {"FOOD_PROVIDER", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"success": False, "error": {"code": "FORBIDDEN", "message": "Not allowed to read these matches", "details": []}})
     matches = rank_matches([
         store.matches[key] for key in store.matches if store.matches[key]["donation_id"] == donation_id

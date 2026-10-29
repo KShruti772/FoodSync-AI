@@ -16,11 +16,14 @@ import {
   Sparkles,
   ChevronRight,
   ShieldCheck,
+  Phone,
 } from 'lucide-react';
+import { formatActiveReservationDeadline } from '@/lib/deadline-utils.mjs';
 
 export default function ProviderDashboard() {
-  const { user, donations, matches, impactMetrics, completePickup } = useDemo();
+  const { user, donations, matches, impactMetrics, completePickup, logout } = useDemo();
   const [pickupModalDonationId, setPickupModalDonationId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const activeDonations = donations.filter((d) => d.status === 'AVAILABLE' || d.status === 'RESERVED');
   const availableMeals = activeDonations.reduce((sum, d) => sum + d.quantity, 0);
@@ -28,10 +31,15 @@ export default function ProviderDashboard() {
 
   const targetDonationForModal = donations.find((d) => d.id === pickupModalDonationId);
 
-  const handleConfirmPickup = () => {
+  const handleConfirmPickup = async () => {
     if (pickupModalDonationId) {
-      completePickup(pickupModalDonationId);
-      setPickupModalDonationId(null);
+      setActionError(null);
+      try {
+        await completePickup(pickupModalDonationId);
+        setPickupModalDonationId(null);
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : 'Unable to complete this pickup.');
+      }
     }
   };
 
@@ -53,15 +61,40 @@ export default function ProviderDashboard() {
           <p className="mt-1 text-sm text-slate-600">
             Intelligently match surplus food with verified community recipient organizations.
           </p>
+          {(user?.address || user?.phone) && (
+            <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+              {user.address && (
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5" />
+                  {user.address}
+                </span>
+              )}
+              {user.phone && (
+                <span className="inline-flex items-center gap-1">
+                  <Phone className="h-3.5 w-3.5" />
+                  {user.phone}
+                </span>
+              )}
+            </p>
+          )}
         </div>
 
-        <Link
-          href="/donations/new"
-          className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-5 py-3 rounded-xl shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 shrink-0"
-        >
-          <PlusCircle className="h-4 w-4" />
-          Create Donation
-        </Link>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Link
+            href="/donations/new"
+            className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-5 py-3 rounded-xl shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+          >
+            <PlusCircle className="h-4 w-4" />
+            Create Donation
+          </Link>
+          <button
+            type="button"
+            onClick={logout}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
       {/* KPI Overview Cards */}
@@ -198,7 +231,7 @@ export default function ProviderDashboard() {
                       </div>
                     </div>
 
-                    {isReserved && (
+                    {isReserved && formatActiveReservationDeadline(donation.reservationDeadline) && (
                       <div className="mt-3.5 pt-3 border-t border-teal-100/80 flex items-center justify-between text-xs">
                         <div className="flex items-center gap-1.5 text-teal-900 font-medium">
                           <ShieldCheck className="h-4 w-4 text-teal-700 shrink-0" />
@@ -209,9 +242,7 @@ export default function ProviderDashboard() {
                         <span className="text-right text-[11px] text-teal-700">
                           Collection by:{' '}
                           <strong>
-                            {donation.reservationDeadline
-                              ? new Date(donation.reservationDeadline).toLocaleString()
-                              : 'Deadline unavailable'}
+                            {formatActiveReservationDeadline(donation.reservationDeadline)}
                           </strong>
                         </span>
                       </div>
@@ -290,6 +321,11 @@ export default function ProviderDashboard() {
       {pickupModalDonationId && targetDonationForModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
+            {actionError && (
+              <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+                {actionError}
+              </p>
+            )}
             <div className="flex items-center gap-3 text-teal-800">
               <div className="h-10 w-10 rounded-full bg-teal-100 flex items-center justify-center">
                 <CheckCircle2 className="h-6 w-6 text-teal-700" />

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Metadata } from 'next';
 import ClientProviders from '@/components/providers/ClientProviders';
+import 'leaflet/dist/leaflet.css';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -30,4 +31,3 @@ export default function RootLayout({
     </html>
   );
 }
-

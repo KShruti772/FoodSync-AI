@@ -96,11 +96,20 @@ def test_health_check():
 def test_register_and_login_flow():
     created = register_user("provider@example.com", role="FOOD_PROVIDER")
     token = created["token"]
+    user_id = created["user"]["id"]
+    with SessionLocal() as db:
+        persisted_user = db.get(UserORM, user_id)
+        assert persisted_user is not None
+        assert persisted_user.role == "FOOD_PROVIDER"
+        assert persisted_user.phone == "9876543210"
+        assert persisted_user.address == "123 Main Street"
+
     store.users.clear()
-    store.refresh_from_db()
     me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert me.status_code == 200
     assert me.json()["email"] == "provider@example.com"
+    assert me.json()["id"] == user_id
+    assert me.json()["role"] == "FOOD_PROVIDER"
     assert me.json()["phone"] == "9876543210"
     assert me.json()["address"] == "123 Main Street"
 
@@ -109,7 +118,83 @@ def test_register_and_login_flow():
         json={"email": "provider@example.com", "password": "StrongPass123"},
     )
     assert login.status_code == 200
+    assert login.json()["user"]["id"] == user_id
     assert login.json()["user"]["role"] == "FOOD_PROVIDER"
+
+
+def test_duplicate_registration_and_login_are_separate_operations():
+    created = register_user("Existing.User@example.com")
+    existing_id = created["user"]["id"]
+
+    duplicate = client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "existing.user@EXAMPLE.com",
+            "password": "StrongPass123",
+            "role": "FOOD_PROVIDER",
+            "organization_name": "Duplicate Org",
+            "phone": "9876543210",
+            "address": "123 Main Street",
+            "latitude": 12.9716,
+            "longitude": 77.5946,
+        },
+    )
+    assert duplicate.status_code == 400
+    assert duplicate.json()["detail"]["error"]["message"] == "Email already registered"
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "  EXISTING.USER@EXAMPLE.COM  ", "password": "StrongPass123"},
+    )
+    assert login.status_code == 200, login.text
+    assert login.json()["user"]["id"] == existing_id
+
+    invalid_password = client.post(
+        "/api/v1/auth/login",
+        json={"email": "existing.user@example.com", "password": "WrongPassword123"},
+    )
+    assert invalid_password.status_code == 401
+    assert invalid_password.json()["detail"]["error"]["message"] == "Invalid email or password"
+
+    with SessionLocal() as db:
+        assert db.query(UserORM).count() == 1
+        assert db.get(UserORM, existing_id) is not None
+
+
+def test_providers_only_receive_their_own_donations():
+    first_provider = register_user("first-provider@example.com")
+    second_provider = register_user("second-provider@example.com")
+    created_ids = []
+
+    for index, provider in enumerate((first_provider, second_provider), start=1):
+        response = client.post(
+            "/api/v1/donations",
+            json={
+                "title": f"Provider {index} food batch",
+                "food_type": "PACKAGED_GROCERY",
+                "perishable": False,
+                "quantity_meals": 20,
+                "prepared_at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+                "expiry_time": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
+                "pickup_address": f"{index} Market Road",
+                "latitude": 12.9716,
+                "longitude": 77.5946,
+            },
+            headers={"Authorization": f"Bearer {provider['token']}"},
+        )
+        assert response.status_code == 201, response.text
+        created_ids.append(response.json()["id"])
+
+    first_list = client.get(
+        "/api/v1/donations",
+        headers={"Authorization": f"Bearer {first_provider['token']}"},
+    )
+    second_list = client.get(
+        "/api/v1/donations",
+        headers={"Authorization": f"Bearer {second_provider['token']}"},
+    )
+    assert [item["id"] for item in first_list.json()] == [created_ids[0]]
+    assert [item["id"] for item in second_list.json()] == [created_ids[1]]
 
 
 def test_donation_match_and_reservation_flow():
@@ -124,6 +209,14 @@ def test_donation_match_and_reservation_flow():
         headers={"Authorization": f"Bearer {recipient_token}"},
     )
     assert profile_response.status_code == 200, profile_response.text
+    recipient_profile = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {recipient_token}"},
+    )
+    assert recipient_profile.status_code == 200
+    assert recipient_profile.json()["role"] == "RECIPIENT"
+    assert recipient_profile.json()["phone"] == "9876543210"
+    assert recipient_profile.json()["address"] == "123 Main Street"
 
     donation_payload = {
         "title": "Rice packets",
@@ -144,6 +237,8 @@ def test_donation_match_and_reservation_flow():
     assert donation_response.status_code == 201, donation_response.text
     donation_id = donation_response.json()["id"]
     assert donation_response.json()["status"] == "AVAILABLE"
+    assert donation_response.json()["latitude"] == donation_payload["latitude"]
+    assert donation_response.json()["longitude"] == donation_payload["longitude"]
 
     matches_response = client.get(
         "/api/v1/recipients/matches",
@@ -168,10 +263,49 @@ def test_donation_match_and_reservation_flow():
     assert donation_status.status_code == 200
     assert donation_status.json()["status"] == "RESERVED"
     assert donation_status.json()["reserved_recipient_id"] == recipient["user"]["id"]
+    assert donation_status.json()["latitude"] == donation_payload["latitude"]
+    assert donation_status.json()["longitude"] == donation_payload["longitude"]
     deadline = datetime.fromisoformat(donation_status.json()["reservation_deadline"])
     if deadline.tzinfo is None:
         deadline = deadline.replace(tzinfo=timezone.utc)
     assert deadline > datetime.now(timezone.utc)
+    expiry_time = datetime.fromisoformat(donation_status.json()["expiry_time"])
+    if expiry_time.tzinfo is None:
+        expiry_time = expiry_time.replace(tzinfo=timezone.utc)
+    assert deadline <= expiry_time
+
+    recipient_donations = client.get(
+        "/api/v1/donations",
+        headers={"Authorization": f"Bearer {recipient_token}"},
+    )
+    assert recipient_donations.status_code == 200, recipient_donations.text
+    reserved_donation = next(item for item in recipient_donations.json() if item["id"] == donation_id)
+    assert reserved_donation["reservation_deadline"] == donation_status.json()["reservation_deadline"]
+    assert reserved_donation["provider_address"] == "123 Main Street"
+    assert reserved_donation["provider_phone"] == "9876543210"
+    assert reserved_donation["latitude"] == donation_payload["latitude"]
+    assert reserved_donation["longitude"] == donation_payload["longitude"]
+
+    other_recipient = register_user(
+        "other-recipient@example.com",
+        role="RECIPIENT",
+        latitude=13.8,
+        longitude=77.8,
+    )
+    unauthorized_detail = client.get(
+        f"/api/v1/donations/{donation_id}",
+        headers={"Authorization": f"Bearer {other_recipient['token']}"},
+    )
+    assert unauthorized_detail.status_code == 403
+    accepted_matches = client.get(
+        "/api/v1/recipients/matches",
+        headers={"Authorization": f"Bearer {recipient_token}"},
+    )
+    assert accepted_matches.status_code == 200
+    active_match = next(
+        item for item in accepted_matches.json()["data"] if item["id"] == match_id
+    )
+    assert active_match["pickup_deadline"] == donation_status.json()["reservation_deadline"]
 
 
 def test_impact_summary_endpoint():
@@ -332,6 +466,15 @@ def test_expired_reservation_is_released_and_another_recipient_can_accept():
     assert store.donations[donation_id]["status"] == "AVAILABLE"
     assert store.matches[first_match["id"]]["status"] == "EXPIRED"
     assert store.matches[first_match["id"]]["reservation_outcome"] == "TIMED_OUT"
+    first_history = client.get(
+        "/api/v1/recipients/matches",
+        headers={"Authorization": f"Bearer {first_recipient['token']}"},
+    )
+    expired_match = next(
+        item for item in first_history.json()["data"] if item["id"] == first_match["id"]
+    )
+    assert expired_match["status"] == "EXPIRED"
+    assert expired_match["pickup_deadline"] is not None
     for user in (provider, first_recipient):
         notifications = client.get(
             "/api/v1/notifications",
@@ -370,6 +513,7 @@ def test_expired_reservation_is_released_and_another_recipient_can_accept():
 def test_completed_donation_is_not_released_after_old_deadline():
     provider = register_user("provider@example.com")
     recipient = register_user("recipient@example.com", role="RECIPIENT")
+    other_recipient = register_user("other-recipient@example.com", role="RECIPIENT")
     created = client.post(
         "/api/v1/donations",
         json={
@@ -413,9 +557,82 @@ def test_completed_donation_is_not_released_after_old_deadline():
     store.refresh_from_db()
     assert store.donations[donation_id]["status"] == "COMPLETED"
     assert store.matches[candidate["id"]]["status"] == "COMPLETED"
+    recipient_matches = client.get(
+        "/api/v1/recipients/matches",
+        headers={"Authorization": f"Bearer {recipient['token']}"},
+    )
+    assert recipient_matches.status_code == 200
+    completed_match = next(
+        item for item in recipient_matches.json()["data"] if item["id"] == candidate["id"]
+    )
+    assert completed_match["status"] == "COMPLETED"
+    assert completed_match["pickup_deadline"] is not None
+
+    recipient_donations = client.get(
+        "/api/v1/donations",
+        headers={"Authorization": f"Bearer {recipient['token']}"},
+    )
+    assert any(
+        item["id"] == donation_id and item["status"] == "COMPLETED"
+        for item in recipient_donations.json()
+    )
+    other_recipient_donations = client.get(
+        "/api/v1/donations",
+        headers={"Authorization": f"Bearer {other_recipient['token']}"},
+    )
+    assert all(item["id"] != donation_id for item in other_recipient_donations.json())
     impact = client.get("/api/v1/impact/summary")
     assert impact.status_code == 200
     assert impact.json()["total_meals_rescued"] == 20
+
+
+def test_missing_reservation_deadline_is_returned_without_inventing_one():
+    provider = register_user("provider@example.com")
+    recipient = register_user("recipient@example.com", role="RECIPIENT")
+    created = client.post(
+        "/api/v1/donations",
+        json={
+            "title": "Reserved food without a recorded deadline",
+            "food_type": "PACKAGED_GROCERY",
+            "perishable": False,
+            "quantity_meals": 20,
+            "prepared_at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+            "expiry_time": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
+            "pickup_address": "456 Market Road",
+            "latitude": 12.9716,
+            "longitude": 77.5946,
+        },
+        headers={"Authorization": f"Bearer {provider['token']}"},
+    )
+    donation_id = created.json()["id"]
+    match = next(
+        item
+        for item in client.get(
+            "/api/v1/recipients/matches",
+            headers={"Authorization": f"Bearer {recipient['token']}"},
+        ).json()["data"]
+        if item["donation_id"] == donation_id
+    )
+    accepted = client.post(
+        f"/api/v1/matches/{match['id']}/accept",
+        headers={"Authorization": f"Bearer {recipient['token']}"},
+    )
+    assert accepted.status_code == 200
+
+    with SessionLocal() as db:
+        db.get(MatchORM, match["id"]).pickup_deadline = None
+        db.get(DonationORM, donation_id).reservation_deadline = None
+        db.commit()
+    store.refresh_from_db()
+
+    recipient_donations = client.get(
+        "/api/v1/donations",
+        headers={"Authorization": f"Bearer {recipient['token']}"},
+    )
+    assert recipient_donations.status_code == 200
+    reserved = next(item for item in recipient_donations.json() if item["id"] == donation_id)
+    assert reserved["status"] == "RESERVED"
+    assert reserved["reservation_deadline"] is None
 
 
 def test_two_recipients_cannot_reserve_the_same_donation():

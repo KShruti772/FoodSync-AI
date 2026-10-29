@@ -6,6 +6,10 @@ export interface DemoUser {
   organization: string;
   location: string;
   avatarInitials: string;
+  phone?: string | null;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface DemoDonation {
@@ -33,6 +37,8 @@ export interface DemoDonation {
   reservedRecipientId?: string;
   reservedRecipientName?: string;
   reservationDeadline?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface DemoMatch {

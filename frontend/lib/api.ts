@@ -28,6 +28,19 @@ export interface RegisterPayload {
   longitude: number;
 }
 
+export interface DonationCreatePayload {
+  title: string;
+  food_type: string;
+  perishable: boolean;
+  quantity_meals: number;
+  prepared_at: string;
+  expiry_time: string;
+  pickup_address: string;
+  latitude: number;
+  longitude: number;
+  special_instructions?: string;
+}
+
 export interface ApiDonation {
   id: string;
   provider_id: string;
@@ -95,7 +108,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 export async function apiLogin(email: string, password: string): Promise<ApiAuthResponse> {
   return apiFetch<ApiAuthResponse>('/api/v1/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email: email.trim(), password }),
   });
 }
 
@@ -127,6 +140,17 @@ export async function apiGetDonation(token: string, donationId: string): Promise
   });
 }
 
+export async function apiCreateDonation(
+  token: string,
+  payload: DonationCreatePayload,
+): Promise<ApiDonation> {
+  return apiFetch<ApiDonation>('/api/v1/donations', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function apiGetRecipientMatches(token: string): Promise<ApiMatch[]> {
   const response = await apiFetch<{ success: boolean; data: ApiMatch[] }>('/api/v1/recipients/matches', {
     headers: { Authorization: `Bearer ${token}` },
@@ -134,8 +158,21 @@ export async function apiGetRecipientMatches(token: string): Promise<ApiMatch[]>
   return response.data;
 }
 
+export async function apiGetDonationMatches(token: string, donationId: string): Promise<ApiMatch[]> {
+  return apiFetch<ApiMatch[]>(`/api/v1/donations/${encodeURIComponent(donationId)}/matches`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 export async function apiAcceptMatch(token: string, matchId: string): Promise<void> {
   await apiFetch<{ success: boolean }>(`/api/v1/matches/${encodeURIComponent(matchId)}/accept`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function apiRejectMatch(token: string, matchId: string): Promise<void> {
+  await apiFetch<{ success: boolean }>(`/api/v1/matches/${encodeURIComponent(matchId)}/reject`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   });

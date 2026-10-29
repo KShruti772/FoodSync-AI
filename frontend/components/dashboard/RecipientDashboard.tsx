@@ -17,16 +17,22 @@ import {
   Utensils,
   ChevronRight,
 } from 'lucide-react';
+import { formatActiveReservationDeadline } from '@/lib/deadline-utils.mjs';
 
 export default function RecipientDashboard() {
-  const { user, donations, matches } = useDemo();
+  const { user, donations, matches, logout } = useDemo();
 
   // Recipient matches
-  const recipientMatches = matches.filter((m) => m.recipientId === 'usr-recip-001' || m.recipientId === user?.id);
+  const recipientMatches = matches.filter((m) => m.recipientId === user?.id);
   const proposedMatches = recipientMatches.filter((m) => m.status === 'PROPOSED');
   const acceptedMatches = recipientMatches.filter((m) => m.status === 'ACCEPTED');
+  const historicalMatches = recipientMatches.filter(
+    (m) => m.status === 'COMPLETED' || m.status === 'EXPIRED',
+  );
 
-  const reservedDonations = donations.filter((d) => d.status === 'RESERVED' && (d.reservedRecipientId === user?.id || d.reservedRecipientId === 'usr-recip-001'));
+  const reservedDonations = donations.filter(
+    (d) => d.status === 'RESERVED' && d.reservedRecipientId === user?.id,
+  );
   const totalAcceptedMeals = reservedDonations.reduce((sum, d) => sum + d.quantity, 0);
 
   return (
@@ -47,15 +53,40 @@ export default function RecipientDashboard() {
           <p className="mt-1 text-sm text-slate-600">
             Review matched surplus food listings and coordinate safe, rapid community distribution.
           </p>
+          {(user?.address || user?.phone) && (
+            <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+              {user.address && (
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5" />
+                  {user.address}
+                </span>
+              )}
+              {user.phone && (
+                <span className="inline-flex items-center gap-1">
+                  <Phone className="h-3.5 w-3.5" />
+                  {user.phone}
+                </span>
+              )}
+            </p>
+          )}
         </div>
 
-        <Link
-          href="/matches"
-          className="inline-flex items-center justify-center gap-2 bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-5 py-3 rounded-xl shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 shrink-0"
-        >
-          <Utensils className="h-4 w-4" />
-          Browse Available Surplus ({proposedMatches.length})
-        </Link>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Link
+            href="/matches"
+            className="inline-flex items-center justify-center gap-2 bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-5 py-3 rounded-xl shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+          >
+            <Utensils className="h-4 w-4" />
+            Browse Available Surplus ({proposedMatches.length})
+          </Link>
+          <button
+            type="button"
+            onClick={logout}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
       {/* KPI Overview Cards */}
@@ -116,6 +147,13 @@ export default function RecipientDashboard() {
                     <p className="text-xs text-slate-600">
                       <strong>{donation.quantity} {donation.quantityUnit}</strong> • Expiry: {donation.expiryTime}
                     </p>
+                    {formatActiveReservationDeadline(donation.reservationDeadline) && (
+                      <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-emerald-800">
+                        <Clock className="h-3.5 w-3.5" />
+                        Collection by:{' '}
+                        {formatActiveReservationDeadline(donation.reservationDeadline)}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -136,6 +174,41 @@ export default function RecipientDashboard() {
             ))}
           </div>
         </div>
+      )}
+
+      {historicalMatches.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-base font-bold text-slate-900">Reservation History</h2>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {historicalMatches.map((match) => {
+              const donation = donations.find((item) => item.id === match.donationId);
+              return (
+                <div key={match.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">
+                        {donation?.title || `Donation #${match.donationId}`}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {match.status === 'COMPLETED' ? 'Collection completed' : 'Reservation expired'}
+                        {' · '}{match.proposedAt}
+                      </p>
+                    </div>
+                    <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-700">
+                      {match.status}
+                    </span>
+                  </div>
+                  {match.pickupDeadline && (
+                    <p className="mt-2 flex items-center gap-1 text-xs text-slate-600">
+                      <Clock className="h-3.5 w-3.5" />
+                      Collection deadline: {new Date(match.pickupDeadline).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {/* Main Content Grid: Recommended Opportunities & Privacy Status */}

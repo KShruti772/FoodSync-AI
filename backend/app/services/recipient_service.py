@@ -61,8 +61,8 @@ class RecipientService:
         from app.services.reservation_service import ReservationService
 
         ReservationService.release_expired_reservations()
+        store.refresh_from_db()
         return rank_matches([
             item for item in store.matches.values()
             if item["recipient_id"] == user["id"]
-            and item["status"] in {"PROPOSED", "NOTIFIED", "ACCEPTED"}
         ])

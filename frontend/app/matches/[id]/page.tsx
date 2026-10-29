@@ -34,6 +34,7 @@ export default function MatchDetailPage() {
   const matchId = params?.id as string;
   const { matches, donations, acceptMatch, rejectMatch } = useDemo();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [providerDetails, setProviderDetails] = useState<{
     address: string | null;
     phone: string | null;
@@ -97,17 +98,29 @@ export default function MatchDetailPage() {
 
   const handleAccept = async () => {
     setIsProcessing(true);
-    await new Promise((r) => setTimeout(r, 500));
-    acceptMatch(match.id);
-    setIsProcessing(false);
+    setActionError(null);
+    try {
+      await new Promise((r) => setTimeout(r, 500));
+      await acceptMatch(match.id);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to reserve this donation.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleReject = async () => {
     setIsProcessing(true);
-    await new Promise((r) => setTimeout(r, 400));
-    rejectMatch(match.id);
-    setIsProcessing(false);
-    router.push('/matches');
+    setActionError(null);
+    try {
+      await new Promise((r) => setTimeout(r, 400));
+      await rejectMatch(match.id);
+      router.push('/matches');
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to decline this donation.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -117,6 +130,11 @@ export default function MatchDetailPage() {
       <main className="flex-1 py-8 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto w-full">
         <ProtectedRoute>
           <div className="space-y-6">
+            {actionError && (
+              <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                {actionError}
+              </p>
+            )}
             {/* Back Link */}
             <div className="flex items-center justify-between">
               <Link

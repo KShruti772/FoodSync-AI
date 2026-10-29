@@ -72,7 +72,7 @@ export default function DonationsListPage() {
         const refreshed = await apiGetDonations(token);
         setDonations(refreshed.map(mapApiDonation));
       } else {
-        completePickup(confirmModalId);
+        await completePickup(confirmModalId);
       }
       setConfirmModalId(null);
     } catch (actionError: unknown) {

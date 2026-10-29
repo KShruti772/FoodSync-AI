@@ -100,7 +100,7 @@ export default function MatchesListPage() {
         await apiAcceptMatch(token, match.id);
         setReloadKey((key) => key + 1);
       } else {
-        acceptMatch(match.id);
+        await acceptMatch(match.id);
       }
     } catch (actionError: unknown) {
       setError(actionError instanceof Error ? actionError.message : 'Unable to accept this donation.');
@@ -119,7 +119,7 @@ export default function MatchesListPage() {
         await apiCompleteDonation(token, donationId);
         setReloadKey((key) => key + 1);
       } else {
-        completePickup(donationId);
+        await completePickup(donationId);
       }
     } catch (actionError: unknown) {
       setError(actionError instanceof Error ? actionError.message : 'Unable to complete this collection.');

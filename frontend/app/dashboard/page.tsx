@@ -9,7 +9,7 @@ import RecipientDashboard from '@/components/dashboard/RecipientDashboard';
 import { useDemo } from '@/lib/demo-context';
 
 export default function DashboardPage() {
-  const { user } = useDemo();
+  const { user, dashboardError } = useDemo();
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
@@ -17,6 +17,11 @@ export default function DashboardPage() {
 
       <main className="flex-1 py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
         <ProtectedRoute>
+          {dashboardError && (
+            <p role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              {dashboardError}
+            </p>
+          )}
           {user?.role === 'FOOD_PROVIDER' ? <ProviderDashboard /> : <RecipientDashboard />}
         </ProtectedRoute>
       </main>

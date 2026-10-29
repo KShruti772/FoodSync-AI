@@ -54,6 +54,12 @@ class DonationService:
         if user["role"] == "FOOD_PROVIDER":
             donations = [item for item in donations if item["provider_id"] == user["id"]]
         elif user["role"] == "RECIPIENT":
+            historical_donation_ids = {
+                match["donation_id"]
+                for match in store.matches.values()
+                if match["recipient_id"] == user["id"]
+                and match["status"] in {"COMPLETED", "EXPIRED"}
+            }
             donations = [
                 item
                 for item in donations
@@ -64,6 +70,10 @@ class DonationService:
                 or (
                     item["status"] == "RESERVED"
                     and item.get("reserved_recipient_id") == user["id"]
+                )
+                or (
+                    item["id"] in historical_donation_ids
+                    and item["status"] in {"COMPLETED", "EXPIRED"}
                 )
             ]
             donations = [
@@ -86,6 +96,17 @@ class DonationService:
             provider = store.users.get(donation["provider_id"])
             recipient = store.users.get(donation.get("reserved_recipient_id"))
             donation["provider_org"] = provider["organization_name"] if provider else "Food provider"
+            is_reserved_for_user = (
+                user["role"] == "RECIPIENT"
+                and donation["status"] == "RESERVED"
+                and donation.get("reserved_recipient_id") == user["id"]
+            )
+            donation["provider_address"] = (
+                provider.get("address") if provider and is_reserved_for_user else None
+            )
+            donation["provider_phone"] = (
+                provider.get("phone") if provider and is_reserved_for_user else None
+            )
             donation["reserved_recipient_name"] = (
                 recipient["organization_name"] if recipient else None
             )

@@ -9,7 +9,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from passlib.context import CryptContext
 
 from app.core.config import settings
-from app.core.store import store
+from app.core.database import SessionLocal
+from app.models import UserORM
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 security = HTTPBearer()
@@ -46,10 +47,21 @@ def get_current_user(
     token = credentials.credentials
     payload = decode_access_token(token)
     user_id = payload.get("sub")
-    user = store.users.get(str(user_id))
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-    return user
+    with SessionLocal() as db:
+        user = db.get(UserORM, str(user_id))
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        return {
+            "id": user.id,
+            "email": user.email,
+            "role": user.role,
+            "organization_name": user.organization_name,
+            "phone": user.phone,
+            "address": user.address,
+            "latitude": user.latitude,
+            "longitude": user.longitude,
+            "is_verified": user.is_verified,
+        }
 
 
 def get_current_active_user(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:

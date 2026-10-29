@@ -36,6 +36,7 @@ export default function CreateDonationPage() {
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [matchingSimulationStep, setMatchingSimulationStep] = useState<number | null>(null);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   const dietaryOptions = ['Vegetarian', 'Vegan', 'Nut-Free', 'Halal-Friendly', 'Gluten-Free', 'Dairy-Free'];
 
@@ -71,8 +72,13 @@ export default function CreateDonationPage() {
     setMatchingSimulationStep(3); // "Matches ranked and dispatched!"
     await new Promise((r) => setTimeout(r, 500));
 
-    const newDonationId = createDonation(formData);
-    router.push(`/donations/${newDonationId}`);
+    try {
+      const newDonationId = await createDonation(formData);
+      router.push(`/donations/${newDonationId}`);
+    } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : 'Unable to create this donation.');
+      setMatchingSimulationStep(null);
+    }
   };
 
   return (
@@ -82,6 +88,11 @@ export default function CreateDonationPage() {
       <main className="flex-1 py-8 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto w-full">
         <ProtectedRoute>
           <div className="space-y-6">
+            {submissionError && (
+              <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                {submissionError}
+              </p>
+            )}
             {/* Back Link */}
             <Link
               href="/dashboard"

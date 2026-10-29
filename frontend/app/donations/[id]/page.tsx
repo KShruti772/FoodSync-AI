@@ -7,6 +7,8 @@ import Navbar from '@/components/navigation/Navbar';
 import Footer from '@/components/home/Footer';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { useDemo } from '@/lib/demo-context';
+import { formatActiveReservationDeadline } from '@/lib/deadline-utils.mjs';
+import PickupLocationMap from '@/components/maps/PickupLocationMap';
 import {
   Clock,
   MapPin,
@@ -24,8 +26,9 @@ import {
 export default function DonationDetailPage() {
   const params = useParams();
   const donationId = params?.id as string;
-  const { donations, matches, completePickup } = useDemo();
+  const { donations, matches, completePickup, user } = useDemo();
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const donation = donations.find((d) => d.id === donationId);
   const donationMatches = matches.filter((m) => m.donationId === donationId);
@@ -52,6 +55,20 @@ export default function DonationDetailPage() {
 
   const isReserved = donation.status === 'RESERVED';
   const isCompleted = donation.status === 'COMPLETED';
+  const canViewPickupMap =
+    (user?.role === 'FOOD_PROVIDER' && donation.providerId === user.id) ||
+    (user?.role === 'RECIPIENT' &&
+      isReserved &&
+      donation.reservedRecipientId === user.id);
+  const handleCompletePickup = async () => {
+    setActionError(null);
+    try {
+      await completePickup(donation.id);
+      setShowCompleteModal(false);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to complete this handover.');
+    }
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
@@ -60,6 +77,11 @@ export default function DonationDetailPage() {
       <main className="flex-1 py-8 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto w-full">
         <ProtectedRoute>
           <div className="space-y-6">
+            {actionError && (
+              <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                {actionError}
+              </p>
+            )}
             {/* Back Navigation */}
             <div className="flex items-center justify-between">
               <Link
@@ -105,12 +127,10 @@ export default function DonationDetailPage() {
                   </button>
                 )}
               </div>
-              {isReserved && (
+              {isReserved && formatActiveReservationDeadline(donation.reservationDeadline) && (
                 <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900">
                   <strong>Collection deadline:</strong>{' '}
-                  {donation.reservationDeadline
-                    ? new Date(donation.reservationDeadline).toLocaleString()
-                    : 'Deadline unavailable'}
+                  {formatActiveReservationDeadline(donation.reservationDeadline)}
                 </div>
               )}
 
@@ -243,6 +263,19 @@ export default function DonationDetailPage() {
               </div>
             </div>
 
+            {canViewPickupMap && (
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-2xs">
+                <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
+                  <MapPin className="h-4 w-4 text-emerald-600" />
+                  Pickup Location
+                </h2>
+                <PickupLocationMap
+                  latitude={donation.latitude}
+                  longitude={donation.longitude}
+                />
+              </section>
+            )}
+
             {/* Matched Recipient Organizations Ranking */}
             <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-2xs space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -372,10 +405,7 @@ export default function DonationDetailPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      completePickup(donation.id);
-                      setShowCompleteModal(false);
-                    }}
+                    onClick={handleCompletePickup}
                     className="px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg shadow-sm"
                   >
                     Confirm Handover

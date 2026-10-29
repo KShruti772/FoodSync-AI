@@ -31,13 +31,15 @@ export function mapApiDonation(donation: ApiDonation): DemoDonation {
     status: donation.status,
     approxLocation: 'Pickup location shared after reservation',
     exactAddress: donation.pickup_address || 'Exact pickup address is disclosed after acceptance.',
-    contactPerson: '',
-    contactPhone: '',
+    contactPerson: donation.provider_org || '',
+    contactPhone: donation.provider_phone || '',
     handlingNotes: donation.special_instructions || '',
     matchedCount: 0,
     reservedRecipientId: donation.reserved_recipient_id || undefined,
     reservedRecipientName: donation.reserved_recipient_name || undefined,
     reservationDeadline: donation.reservation_deadline || null,
+    latitude: donation.latitude ?? null,
+    longitude: donation.longitude ?? null,
   };
 }
 
@@ -61,6 +63,7 @@ export function mapApiMatch(match: ApiMatch, recipientName: string): DemoMatch {
     status: match.status,
     proposedAt: match.created_at ? new Date(match.created_at).toLocaleString() : 'Recently matched',
     pickupDeadline: match.pickup_deadline || null,
+    reservationOutcome: match.reservation_outcome || null,
     whyBreakdown: {
       distanceText: `${match.distance_km} km away`,
       urgencyText: `Urgency compatibility ${urgency}/100`,

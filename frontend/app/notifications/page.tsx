@@ -20,7 +20,7 @@ export default function NotificationsPage() {
   const { user, notifications, markNotificationRead, markAllNotificationsRead } = useDemo();
 
   const userNotifications = user
-    ? notifications.filter((n) => n.userId === user.id || n.userId === 'usr-prov-001' || n.userId === 'usr-recip-001')
+    ? notifications.filter((n) => n.userId === user.id)
     : notifications;
 
   return (

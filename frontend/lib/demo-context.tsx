@@ -14,22 +14,35 @@ import {
   INITIAL_DEMO_NOTIFICATIONS,
   INITIAL_DEMO_IMPACT,
 } from './demo-data';
-import { apiGetMe, apiLogin, apiRegister } from './api';
+import {
+  apiGetMe,
+  apiGetDonations,
+  apiGetDonationMatches,
+  apiGetRecipientMatches,
+  apiCreateDonation,
+  apiAcceptMatch,
+  apiRejectMatch,
+  apiCompleteDonation,
+  apiLogin,
+  apiRegister,
+} from './api';
+import type { BackendUser, DonationCreatePayload } from './api';
+import { mapApiDonation, mapApiMatch } from './api-mappers';
+import { mapBackendUser } from './backend-user-mapper.mjs';
 import type { RegisterPayload } from './api';
 
 interface DemoContextType {
   user: DemoUser | null;
   isLoaded: boolean;
+  dashboardError: string | null;
   donations: DemoDonation[];
   matches: DemoMatch[];
   notifications: DemoNotification[];
   impactMetrics: DemoImpactMetrics;
   unreadCount: number;
-  loginAs: (role: 'FOOD_PROVIDER' | 'RECIPIENT') => void;
-  login: (email: string, password: string, role?: 'FOOD_PROVIDER' | 'RECIPIENT') => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => void;
-  switchRole: () => void;
   createDonation: (data: {
     title: string;
     foodType: string;
@@ -39,10 +52,10 @@ interface DemoContextType {
     storageRequirement: 'AMBIENT' | 'REFRIGERATED' | 'FROZEN';
     dietary: string[];
     handlingNotes: string;
-  }) => string;
-  acceptMatch: (matchId: string) => void;
-  rejectMatch: (matchId: string) => void;
-  completePickup: (donationId: string) => void;
+  }) => Promise<string>;
+  acceptMatch: (matchId: string) => Promise<void>;
+  rejectMatch: (matchId: string) => Promise<void>;
+  completePickup: (donationId: string) => Promise<void>;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
 }
@@ -66,39 +79,9 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const [matches, setMatches] = useState<DemoMatch[]>(INITIAL_DEMO_MATCHES);
   const [notifications, setNotifications] = useState<DemoNotification[]>(INITIAL_DEMO_NOTIFICATIONS);
   const [impactMetrics, setImpactMetrics] = useState<DemoImpactMetrics>(INITIAL_DEMO_IMPACT);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
 
-  // Hydrate from localStorage safely on mount
-  useEffect(() => {
-    try {
-      const savedUser = localStorage.getItem(STORAGE_KEYS.USER);
-      const savedDonations = localStorage.getItem(STORAGE_KEYS.DONATIONS);
-      const savedMatches = localStorage.getItem(STORAGE_KEYS.MATCHES);
-      const savedNotifs = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
-      const savedImpact = localStorage.getItem(STORAGE_KEYS.IMPACT);
-      const savedToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
-
-      if (savedUser) setUser(JSON.parse(savedUser));
-      if (savedDonations) setDonations(JSON.parse(savedDonations));
-      if (savedMatches) setMatches(JSON.parse(savedMatches));
-      if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
-      if (savedImpact) setImpactMetrics(JSON.parse(savedImpact));
-
-      if (savedToken) {
-        apiGetMe(savedToken)
-          .then((backendUser) => setUser(mapBackendUser(backendUser)))
-          .catch(() => {
-            saveToken(null);
-            saveUser(null);
-          });
-      }
-    } catch {
-      // Fall back to memory defaults
-    } finally {
-      setIsLoaded(true);
-    }
-  }, []);
-
-  // Sync to localStorage
   const saveUser = (newUser: DemoUser | null) => {
     setUser(newUser);
     if (newUser) {
@@ -109,6 +92,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   };
 
   const saveToken = (token: string | null) => {
+    setAuthToken(token);
     if (token) {
       localStorage.setItem(STORAGE_KEYS.TOKEN, token);
     } else {
@@ -116,25 +100,88 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const mapBackendUser = (backendUser: any): DemoUser => {
-    const role = backendUser.role === 'RECIPIENT' ? 'RECIPIENT' : 'FOOD_PROVIDER';
-    const initials = (backendUser.organization_name || backendUser.email || 'FS')
-      .split(' ')
-      .map((part: string) => part[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
+  const fetchBackendData = async (token: string, backendUser: BackendUser) => {
+    const apiDonations = await apiGetDonations(token);
+    const apiMatches =
+      backendUser.role === 'RECIPIENT'
+        ? await apiGetRecipientMatches(token)
+        : (await Promise.all(
+            apiDonations.map((donation) => apiGetDonationMatches(token, donation.id)),
+          )).flat();
 
     return {
-      id: backendUser.id,
-      name: backendUser.organization_name || backendUser.email,
-      email: backendUser.email,
-      role,
-      organization: backendUser.organization_name || 'FoodSync Organization',
-      location: 'Backend-connected location',
-      avatarInitials: initials || 'FS',
+      donations: apiDonations.map(mapApiDonation),
+      matches: apiMatches.map((match) =>
+        mapApiMatch(match, backendUser.organization_name || backendUser.email),
+      ),
     };
   };
+
+  const refreshBackendData = async (token: string, backendUser: BackendUser) => {
+    const data = await fetchBackendData(token, backendUser);
+    setDonations(data.donations);
+    setMatches(data.matches);
+    return data;
+  };
+
+  const refreshCurrentBackendData = async (token: string) => {
+    const backendUser = await apiGetMe(token);
+    await refreshBackendData(token, backendUser);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const hydrate = async () => {
+      try {
+        const savedToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
+        if (savedToken) {
+          setAuthToken(savedToken);
+          const backendUser = await apiGetMe(savedToken);
+          if (cancelled) return;
+          saveUser(mapBackendUser(backendUser));
+          setDonations([]);
+          setMatches([]);
+          setNotifications([]);
+          try {
+            const data = await fetchBackendData(savedToken, backendUser);
+            if (!cancelled) {
+              setDonations(data.donations);
+              setMatches(data.matches);
+            }
+          } catch (error) {
+            if (!cancelled) {
+              setDashboardError(
+                error instanceof Error ? error.message : 'Unable to load account dashboard data.',
+              );
+            }
+          }
+        } else {
+          const savedDonations = localStorage.getItem(STORAGE_KEYS.DONATIONS);
+          const savedMatches = localStorage.getItem(STORAGE_KEYS.MATCHES);
+          const savedNotifs = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
+          const savedImpact = localStorage.getItem(STORAGE_KEYS.IMPACT);
+
+          if (savedDonations) setDonations(JSON.parse(savedDonations) as DemoDonation[]);
+          if (savedMatches) setMatches(JSON.parse(savedMatches) as DemoMatch[]);
+          if (savedNotifs) setNotifications(JSON.parse(savedNotifs) as DemoNotification[]);
+          if (savedImpact) setImpactMetrics(JSON.parse(savedImpact) as DemoImpactMetrics);
+        }
+      } catch (error) {
+        saveToken(null);
+        saveUser(null);
+        setDashboardError(
+          error instanceof Error ? error.message : 'Unable to load the authenticated account.',
+        );
+      } finally {
+        if (!cancelled) setIsLoaded(true);
+      }
+    };
+
+    void hydrate();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const saveDonations = (newDonations: DemoDonation[]) => {
     setDonations(newDonations);
@@ -157,43 +204,23 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Actions
-  const loginAs = (role: 'FOOD_PROVIDER' | 'RECIPIENT') => {
-    const demoProfile = role === 'FOOD_PROVIDER' ? INITIAL_DEMO_USERS.provider : INITIAL_DEMO_USERS.recipient;
-    saveToken(null);
-    saveUser(demoProfile);
-    router.push('/dashboard');
-  };
-
-  const login = async (email: string, password: string, rolePreference?: 'FOOD_PROVIDER' | 'RECIPIENT') => {
+  const login = async (email: string, password: string) => {
+    const response = await apiLogin(email, password);
+    const newUser = mapBackendUser(response.user);
+    saveToken(response.token);
+    saveUser(newUser);
+    setDonations([]);
+    setMatches([]);
+    setNotifications([]);
+    setDashboardError(null);
     try {
-      const response = await apiLogin(email, password);
-      const newUser = mapBackendUser(response.user);
-      saveToken(response.token);
-      saveUser(newUser);
-      router.push('/dashboard');
-      return;
-    } catch {
-      // Fallback to demo login if backend is unavailable during development.
-      const isRecipient =
-        rolePreference === 'RECIPIENT' ||
-        email.toLowerCase().includes('recipient') ||
-        email.toLowerCase().includes('shelter') ||
-        email.toLowerCase().includes('ngo');
-
-      const demoUser: DemoUser = {
-        id: isRecipient ? 'usr-recip-001' : 'usr-prov-001',
-        name: isRecipient ? 'Brother Thomas (Director)' : 'Maya Sharma (Head Chef)',
-        email: email.trim() || (isRecipient ? 'recipient@demo.com' : 'provider@demo.com'),
-        role: isRecipient ? 'RECIPIENT' : 'FOOD_PROVIDER',
-        organization: isRecipient ? 'Hope Shelter & Community Pantry' : 'Green Valley Kitchen & Catering',
-        location: isRecipient ? 'Solapur East (2.1 km away)' : 'Solapur Central',
-        avatarInitials: isRecipient ? 'HS' : 'GV',
-      };
-
-      saveToken(null);
-      saveUser(demoUser);
-      router.push('/dashboard');
+      await refreshBackendData(response.token, response.user);
+    } catch (error) {
+      setDashboardError(
+        error instanceof Error ? error.message : 'Unable to load account dashboard data.',
+      );
     }
+    router.push('/dashboard');
   };
 
   const register = async (payload: RegisterPayload) => {
@@ -201,24 +228,31 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     const newUser = mapBackendUser(response.user);
     saveToken(response.token);
     saveUser(newUser);
+    setDonations([]);
+    setMatches([]);
+    setNotifications([]);
+    setDashboardError(null);
+    try {
+      await refreshBackendData(response.token, response.user);
+    } catch (error) {
+      setDashboardError(
+        error instanceof Error ? error.message : 'Unable to load account dashboard data.',
+      );
+    }
     router.push('/dashboard');
   };
 
   const logout = () => {
     saveToken(null);
     saveUser(null);
+    setDonations([]);
+    setMatches([]);
+    setNotifications([]);
+    setDashboardError(null);
     router.push('/login');
   };
 
-  const switchRole = () => {
-    if (!user || user.role === 'FOOD_PROVIDER') {
-      loginAs('RECIPIENT');
-    } else {
-      loginAs('FOOD_PROVIDER');
-    }
-  };
-
-  const createDonation = (data: {
+  const createDonation = async (data: {
     title: string;
     foodType: string;
     quantity: number;
@@ -227,7 +261,37 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     storageRequirement: 'AMBIENT' | 'REFRIGERATED' | 'FROZEN';
     dietary: string[];
     handlingNotes: string;
-  }): string => {
+  }): Promise<string> => {
+    if (authToken) {
+      if (!user?.address || user.latitude == null || user.longitude == null) {
+        throw new Error('Your registered address and location are required to create a donation.');
+      }
+
+      const preparedAt = new Date();
+      const categoryByLabel: Record<string, string> = {
+        'Cooked Meals': 'VEGETARIAN_COOKED',
+        Bakery: 'BAKERY',
+        'Fresh Produce': 'PRODUCE_RAW',
+        Dairy: 'PACKAGED_GROCERY',
+        'Packaged Goods': 'PACKAGED_GROCERY',
+      };
+      const payload: DonationCreatePayload = {
+        title: data.title,
+        food_type: categoryByLabel[data.foodType] || 'PACKAGED_GROCERY',
+        perishable: ['Cooked Meals', 'Fresh Produce', 'Dairy'].includes(data.foodType),
+        quantity_meals: Number(data.quantity),
+        prepared_at: preparedAt.toISOString(),
+        expiry_time: new Date(preparedAt.getTime() + data.expiryHours * 3_600_000).toISOString(),
+        pickup_address: user.address,
+        latitude: user.latitude,
+        longitude: user.longitude,
+        special_instructions: data.handlingNotes,
+      };
+      const created = await apiCreateDonation(authToken, payload);
+      await refreshCurrentBackendData(authToken);
+      return created.id;
+    }
+
     const donationId = `don-${Date.now().toString().slice(-4)}`;
 
     const newDonation: DemoDonation = {
@@ -314,7 +378,13 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     return donationId;
   };
 
-  const acceptMatch = (matchId: string) => {
+  const acceptMatch = async (matchId: string) => {
+    if (authToken) {
+      await apiAcceptMatch(authToken, matchId);
+      await refreshCurrentBackendData(authToken);
+      return;
+    }
+
     const targetMatch = matches.find((m) => m.id === matchId);
     if (!targetMatch) return;
     const pickupDeadline = new Date(Date.now() + 30 * 60 * 1000).toISOString();
@@ -369,7 +439,13 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     saveNotifications([notifRecipient, notifProvider, ...notifications]);
   };
 
-  const rejectMatch = (matchId: string) => {
+  const rejectMatch = async (matchId: string) => {
+    if (authToken) {
+      await apiRejectMatch(authToken, matchId);
+      await refreshCurrentBackendData(authToken);
+      return;
+    }
+
     const updatedMatches = matches.map((m) => {
       if (m.id === matchId) {
         return { ...m, status: 'REJECTED' as const };
@@ -380,7 +456,13 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     saveMatches(updatedMatches);
   };
 
-  const completePickup = (donationId: string) => {
+  const completePickup = async (donationId: string) => {
+    if (authToken) {
+      await apiCompleteDonation(authToken, donationId);
+      await refreshCurrentBackendData(authToken);
+      return;
+    }
+
     const targetDonation = donations.find((d) => d.id === donationId);
     if (!targetDonation) return;
 
@@ -441,16 +523,15 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         isLoaded,
+        dashboardError,
         donations,
         matches,
         notifications,
         impactMetrics,
         unreadCount,
-        loginAs,
         login,
         register,
         logout,
-        switchRole,
         createDonation,
         acceptMatch,
         rejectMatch,
